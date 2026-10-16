@@ -39,6 +39,11 @@ variable "wazuh_sg_id" {
   type        = string
 }
 
+variable "rancher_sg_id" {
+  description = "ID của Security Group dành cho Rancher Management Server"
+  type        = string
+}
+
 variable "pfsense_ami_id" {
   description = "AMI ID của pfSense Marketplace (để trống sẽ dùng Ubuntu Gateway + Suricata)"
   type        = string
@@ -48,7 +53,7 @@ variable "pfsense_ami_id" {
 variable "pfsense_instance_type" {
   description = "Loại máy chủ EC2 cho pfSense Firewall"
   type        = string
-  default     = "t3.small"
+  default     = "t2.small"
 }
 
 variable "pfsense_lan_ip" {
@@ -66,19 +71,25 @@ variable "k3s_master_instance_type" {
 variable "k3s_worker_instance_type" {
   description = "Loại máy chủ EC2 cho K3s Worker Nodes"
   type        = string
-  default     = "t3.small"
+  default     = "t2.small"
 }
 
 variable "worker_count" {
   description = "Số lượng K3s Worker Nodes"
   type        = number
-  default     = 1
+  default     = 2
+}
+
+variable "rancher_instance_type" {
+  description = "Loại máy chủ EC2 cho Rancher Management Server"
+  type        = string
+  default     = "c7i-flex.large"
 }
 
 variable "wazuh_instance_type" {
   description = "Loại máy chủ EC2 cho Wazuh SIEM Server"
   type        = string
-  default     = "t3.small"
+  default     = "t2.small"
 }
 
 variable "k3s_cluster_token" {

@@ -213,6 +213,12 @@ resource "aws_instance" "k3s_master" {
               # Cài đặt Ingress-Nginx Controller (LoadBalancer qua ServiceLB k3s)
               /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml || true
 
+              # Đợi Ingress Nginx Controller sẵn sàng trước khi apply manifests
+              /usr/local/bin/kubectl wait --namespace ingress-nginx \
+                --for=condition=ready pod \
+                --selector=app.kubernetes.io/component=controller \
+                --timeout=180s || sleep 20
+
               # Clone repo và áp dụng toàn bộ manifests Online Boutique + Network Policies
               apt-get update -y && apt-get install -y git
               git clone https://github.com/vinh25042005/ncs_project.git /tmp/ncs_project || true
@@ -287,5 +293,51 @@ resource "aws_instance" "wazuh" {
   tags = {
     Name = "${var.project_name}-wazuh-siem"
     Role = "siem-dashboard"
+  }
+}
+
+# ─────────────────────────────────────────────────────────────
+# 4. Rancher Management Server (Web Dashboard quản trị K8s)
+# ─────────────────────────────────────────────────────────────
+
+resource "aws_instance" "rancher" {
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.rancher_instance_type
+  key_name                    = var.key_name
+  subnet_id                   = var.mgmt_subnet_id
+  vpc_security_group_ids      = [var.rancher_sg_id]
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_size = 30
+    volume_type = "gp3"
+  }
+
+  user_data = <<-EOF
+              #!/bin/bash
+              set -e
+
+              # Cài đặt Docker CE
+              apt-get update -y
+              apt-get install -y ca-certificates curl gnupg lsb-release
+              install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+              chmod a+r /etc/apt/keyrings/docker.gpg
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+              apt-get update -y
+              apt-get install -y docker-ce docker-ce-cli containerd.io
+
+              # Khởi chạy Rancher Server container
+              systemctl enable --now docker
+              docker run -d --restart=unless-stopped \
+                -p 80:80 -p 443:443 \
+                --privileged \
+                --name rancher-server \
+                rancher/rancher:stable
+              EOF
+
+  tags = {
+    Name = "${var.project_name}-rancher-server"
+    Role = "k8s-management-dashboard"
   }
 }

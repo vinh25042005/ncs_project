@@ -162,3 +162,58 @@ resource "aws_security_group" "wazuh" {
     Name = "${var.project_name}-sg-wazuh"
   }
 }
+
+# 4. Security Group: Rancher Management Server
+resource "aws_security_group" "rancher" {
+  name        = "${var.project_name}-sg-rancher"
+  description = "Security Group for Rancher K8s Management Server & Web UI"
+  vpc_id      = var.vpc_id
+
+  # HTTP (chuyển hướng sang HTTPS)
+  ingress {
+    description = "HTTP Web Access"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [var.admin_cidr]
+  }
+
+  # HTTPS (Rancher Web Dashboard)
+  ingress {
+    description = "HTTPS Rancher Dashboard"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.admin_cidr]
+  }
+
+  # SSH
+  ingress {
+    description = "SSH to Rancher"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.admin_cidr]
+  }
+
+  # Giao tiếp nội bộ VPC cho K8s Cluster Agent kết nối về Rancher Server
+  ingress {
+    description = "Internal VPC communication from K8s to Rancher"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    description = "Allow all outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-sg-rancher"
+  }
+}

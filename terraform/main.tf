@@ -56,12 +56,14 @@ module "compute" {
   pfsense_sg_id            = module.security.pfsense_sg_id
   k3s_sg_id                = module.security.k3s_sg_id
   wazuh_sg_id              = module.security.wazuh_sg_id
+  rancher_sg_id            = module.security.rancher_sg_id
   pfsense_ami_id           = var.pfsense_ami_id
   pfsense_instance_type    = var.pfsense_instance_type
   pfsense_lan_ip           = var.pfsense_lan_ip
   k3s_master_instance_type = var.k3s_master_instance_type
   k3s_worker_instance_type = var.k3s_worker_instance_type
   worker_count             = var.worker_count
+  rancher_instance_type    = var.rancher_instance_type
   wazuh_instance_type      = var.wazuh_instance_type
   k3s_cluster_token        = var.k3s_cluster_token
 }

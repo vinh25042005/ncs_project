@@ -12,3 +12,8 @@ output "wazuh_sg_id" {
   description = "ID của Security Group dành cho máy chủ Wazuh SIEM"
   value       = aws_security_group.wazuh.id
 }
+
+output "rancher_sg_id" {
+  description = "ID của Security Group dành cho máy chủ Rancher Management"
+  value       = aws_security_group.rancher.id
+}

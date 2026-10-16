@@ -32,3 +32,13 @@ output "wazuh_private_ip" {
   description = "Địa chỉ Private IP của máy chủ Wazuh SIEM trong VPC"
   value       = aws_instance.wazuh.private_ip
 }
+
+output "rancher_public_ip" {
+  description = "Địa chỉ Public IP của máy chủ Rancher Management"
+  value       = aws_instance.rancher.public_ip
+}
+
+output "rancher_private_ip" {
+  description = "Địa chỉ Private IP của máy chủ Rancher Management trong VPC"
+  value       = aws_instance.rancher.private_ip
+}
