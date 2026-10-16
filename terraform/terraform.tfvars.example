@@ -11,9 +11,9 @@ key_name   = "ncs-key"
 # Giới hạn IP của bạn để truy cập quản trị an toàn (ví dụ: "14.232.x.x/32")
 admin_cidr = "0.0.0.0/0"
 
-# Cấu hình quy mô máy chủ
+# Cấu hình quy mô máy chủ (Tương thích chuẩn Free Tier & vCPU Quota)
 worker_count             = 1
-k3s_master_instance_type = "t3.medium"
+k3s_master_instance_type = "c7i-flex.large"
 k3s_worker_instance_type = "t3.small"
-pfsense_instance_type    = "t3.medium"
-wazuh_instance_type      = "t3.medium"
+pfsense_instance_type    = "t3.small"
+wazuh_instance_type      = "t3.small"

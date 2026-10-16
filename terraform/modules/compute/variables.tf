@@ -48,7 +48,7 @@ variable "pfsense_ami_id" {
 variable "pfsense_instance_type" {
   description = "Loại máy chủ EC2 cho pfSense Firewall"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 
 variable "pfsense_lan_ip" {
@@ -60,7 +60,7 @@ variable "pfsense_lan_ip" {
 variable "k3s_master_instance_type" {
   description = "Loại máy chủ EC2 cho K3s Control Plane Node"
   type        = string
-  default     = "t3.medium"
+  default     = "c7i-flex.large"
 }
 
 variable "k3s_worker_instance_type" {
@@ -78,7 +78,7 @@ variable "worker_count" {
 variable "wazuh_instance_type" {
   description = "Loại máy chủ EC2 cho Wazuh SIEM Server"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 
 variable "k3s_cluster_token" {
