@@ -52,6 +52,9 @@ screenshots/
 *.tfstate.backup
 terraform.tfvars
 **/terraform.tfvars
+*.pem
+*.key
+
 
 # Ansible vault
 ansible/.vault_pass
@@ -78,5 +81,3 @@ k8s/secret-tls.yaml
 # Terraform lock files (regenerated per env)
 **/.terraform.lock.hcl
 
-UI-ACCESS.md
-argocd/apps/techshop.yaml
