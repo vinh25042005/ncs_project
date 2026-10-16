@@ -1,0 +1,256 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all-ingress
+  namespace: online-boutique
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Cho phép Ingress Controller kết nối tới Frontend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-frontend
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# Cart Service: chỉ nhận traffic từ Frontend và CheckoutService
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-cartservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: cartservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        - podSelector:
+            matchLabels:
+              app: checkoutservice
+      ports:
+        - protocol: TCP
+          port: 7070
+---
+# Redis Cart: CHỈ nhận traffic từ CartService (Ngăn chặn truy cập trái phép vào DB cache)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-redis-cart
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-cart
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cartservice
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# Payment Service: CHỈ nhận traffic từ CheckoutService (Bảo vệ thông tin thanh toán)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-paymentservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: paymentservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: checkoutservice
+      ports:
+        - protocol: TCP
+          port: 50051
+---
+# Product Catalog: nhận traffic từ Frontend và CheckoutService
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-productcatalogservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: productcatalogservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        - podSelector:
+            matchLabels:
+              app: checkoutservice
+      ports:
+        - protocol: TCP
+          port: 3550
+---
+# Checkout Service: nhận traffic từ Frontend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-checkoutservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: checkoutservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 5050
+---
+# Recommendation Service: nhận traffic từ Frontend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-recommendationservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: recommendationservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# Shipping Service: nhận traffic từ Frontend và CheckoutService
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-shippingservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: shippingservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        - podSelector:
+            matchLabels:
+              app: checkoutservice
+      ports:
+        - protocol: TCP
+          port: 50051
+---
+# Currency Service: nhận traffic từ Frontend và CheckoutService
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-currencyservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: currencyservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        - podSelector:
+            matchLabels:
+              app: checkoutservice
+      ports:
+        - protocol: TCP
+          port: 7000
+---
+# Email Service: nhận traffic từ CheckoutService
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-emailservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: emailservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: checkoutservice
+      ports:
+        - protocol: TCP
+          port: 5000
+---
+# Ad Service: nhận traffic từ Frontend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-adservice
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: adservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 9555
