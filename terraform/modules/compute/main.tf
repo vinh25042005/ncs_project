@@ -218,6 +218,7 @@ resource "aws_instance" "k3s_master" {
                 --for=condition=ready pod \
                 --selector=app.kubernetes.io/component=controller \
                 --timeout=180s || sleep 20
+              /usr/local/bin/kubectl annotate ingressclass nginx ingressclass.kubernetes.io/is-default-class="true" --overwrite || true
 
               # Clone repo và áp dụng toàn bộ manifests Online Boutique + Network Policies
               apt-get update -y && apt-get install -y git
@@ -231,17 +232,22 @@ resource "aws_instance" "k3s_master" {
               curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash || true
               /usr/local/bin/kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml || true
               /usr/local/bin/kubectl wait --for=condition=available --timeout=120s -n cert-manager deployment/cert-manager-webhook || sleep 15
+              sleep 30
 
-              # Cài đặt Rancher Server trên K3s
+              # Cài đặt Rancher Server trên K3s với retry loop
+              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+              echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> /etc/environment
               helm repo add rancher-stable https://releases.rancher.com/server-charts/stable || true
               helm repo update || true
-              helm install rancher rancher-stable/rancher \
-                --namespace cattle-system \
-                --create-namespace \
-                --set hostname=rancher.lab \
-                --set bootstrapPassword=admin \
-                --set replicas=1 \
-                --set ingress.ingressClassName=nginx || true
+              for i in 1 2 3 4 5; do
+                helm install rancher rancher-stable/rancher \
+                  --namespace cattle-system \
+                  --create-namespace \
+                  --set hostname=rancher.lab \
+                  --set bootstrapPassword=AdminPassword123! \
+                  --set replicas=1 \
+                  --set ingress.ingressClassName=nginx && break || sleep 15
+              done
               EOF
 
   tags = {
