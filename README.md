@@ -88,14 +88,31 @@ Toàn bộ namespace `online-boutique` áp dụng nguyên tắc **Default Deny**
 
 ## 5. Hướng dẫn Triển khai nhanh
 
-### Bước 1: Khởi tạo hạ tầng trên AWS bằng Terraform
+### Bước 1: Khởi tạo S3 Remote State & DynamoDB Locking (Chống xung đột 2 người apply cùng lúc)
+Trước khi chạy dự án chính, khởi tạo bucket S3 và bảng DynamoDB quản lý Lock:
 ```bash
-cd terraform/
-cp terraform.tfvars.example terraform.tfvars
-# Điền key_name và cấu hình cần thiết trong terraform.tfvars
+cd terraform/bootstrap/
 terraform init
 terraform apply
 ```
+*Lấy tên `s3_bucket_name` và `dynamodb_table_name` được xuất ra để điền vào block `backend "s3"` trong `terraform/main.tf`.*
+
+### Bước 2: Quản lý biến `.tfvars` trên S3 & Triển khai hạ tầng chính
+Để cả nhóm dùng chung biến mà không cần commit mật khẩu lên Git:
+```bash
+cd terraform/
+
+# 1. Đẩy file biến lên S3 (chỉ làm 1 lần hoặc khi có thay đổi)
+./tf-s3.sh push-vars
+
+# 2. Khởi tạo backend S3
+terraform init
+
+# 3. Chạy apply trực tiếp nạp biến từ S3 (có cơ chế Lock qua DynamoDB)
+./tf-s3.sh apply
+```
+*Khi có người đang `apply`, người thứ 2 cố tình chạy sẽ bị DynamoDB báo lỗi `Error acquiring the state lock` và chặn lại ngay lập tức.*
+
 *Terraform sẽ tự động tạo:*
 - **VPC** 3 tầng mạng: WAN (Public), K3s (Private), Wazuh (Management).
 - **pfSense / Security Gateway** (Dual-ENI: WAN có Elastic IP, LAN làm Gateway cho K3s).
