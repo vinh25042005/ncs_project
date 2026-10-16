@@ -65,10 +65,71 @@ resource "aws_instance" "pfsense" {
 
   user_data = <<-EOF
               #!/bin/bash
-              echo 1 > /proc/sys/net/ipv4/ip_forward
-              sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/g' /etc/sysctl.conf
+              set -e
+
+              # Kích hoạt chuyển tiếp gói tin (IP Forwarding)
+              cat << 'SYSCTL' > /etc/sysctl.d/99-router.conf
+              net.ipv4.ip_forward = 1
+              net.ipv4.conf.all.forwarding = 1
+              net.ipv4.conf.all.send_redirects = 0
+              net.ipv4.conf.default.send_redirects = 0
+              net.ipv4.conf.all.accept_redirects = 0
+              net.ipv4.conf.default.accept_redirects = 0
+              SYSCTL
+              sysctl --system
+
+              # Nhận diện card mạng WAN và LAN
+              WAN_DEV=$(ip -o -4 route show to default | awk '{print $5}' | head -n1)
+              [ -z "$WAN_DEV" ] && WAN_DEV="ens5"
+              LAN_DEV=$(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | grep -v "$WAN_DEV" | head -n1)
+              [ -z "$LAN_DEV" ] && LAN_DEV="ens6"
+
+              # Bật card mạng LAN và gán IP LAN cố định
+              ip link set "$LAN_DEV" up || true
+              ip addr add ${var.pfsense_lan_ip}/24 dev "$LAN_DEV" 2>/dev/null || true
+              ip route del default dev "$LAN_DEV" 2>/dev/null || true
+
+              # Cấu hình Netplan lưu vĩnh viễn cấu hình 2 ENI
+              cat << NETPLAN > /etc/netplan/60-dual-eni.yaml
+              network:
+                version: 2
+                renderer: networkd
+                ethernets:
+                  $WAN_DEV:
+                    dhcp4: true
+                    dhcp4-overrides:
+                      route-metric: 100
+                  $LAN_DEV:
+                    dhcp4: false
+                    addresses:
+                      - ${var.pfsense_lan_ip}/24
+                    routes:
+                      - to: 10.0.10.0/24
+                        via: ${var.pfsense_lan_ip}
+                        metric: 200
+              NETPLAN
+              chmod 600 /etc/netplan/60-dual-eni.yaml
+
+              # 1. NAT Masquerade ra ngoài Internet cho mạng Private K3s
+              iptables -t nat -A POSTROUTING -o "$WAN_DEV" -j MASQUERADE
+              iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+              iptables -A FORWARD -i "$LAN_DEV" -o "$WAN_DEV" -j ACCEPT
+
+              # 2. Port Forwarding HTTP (80) & HTTPS (443) tới K3s Master (10.0.10.10)
+              iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 10.0.10.10:80
+              iptables -t nat -A PREROUTING -p tcp --dport 443 -j DNAT --to-destination 10.0.10.10:443
+              iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 80 -j ACCEPT
+              iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 443 -j ACCEPT
+
+              # 3. Masquerade trên LAN để đảm bảo traffic phản hồi quay về đúng pfSense
+              iptables -t nat -A POSTROUTING -o "$LAN_DEV" -d 10.0.10.10 -p tcp --dport 80 -j MASQUERADE
+              iptables -t nat -A POSTROUTING -o "$LAN_DEV" -d 10.0.10.10 -p tcp --dport 443 -j MASQUERADE
+
+              # Cài đặt Suricata IDS & lưu cấu hình iptables
+              export DEBIAN_FRONTEND=noninteractive
               apt-get update -y
-              apt-get install -y suricata iptables-persistent
+              apt-get install -y iptables-persistent suricata
+              netfilter-persistent save
               systemctl enable suricata
               EOF
 
@@ -89,6 +150,7 @@ resource "aws_instance" "k3s_master" {
   key_name               = var.key_name
   subnet_id              = var.private_k8s_subnet_id
   vpc_security_group_ids = [var.k3s_sg_id]
+  private_ip             = "10.0.10.10"
 
   root_block_device {
     volume_size = 20
@@ -103,6 +165,12 @@ resource "aws_instance" "k3s_master" {
               echo "net.ipv4.conf.all.rp_filter = 1" >> /etc/sysctl.d/99-security.conf
               echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/99-security.conf
               sysctl --system
+
+              # Đợi pfSense Gateway sẵn sàng trước khi kết nối Internet
+              until ping -c 1 -W 2 ${var.pfsense_lan_ip} >/dev/null 2>&1; do
+                echo "Đang đợi Gateway ${var.pfsense_lan_ip}..."
+                sleep 3
+              done
 
               # Thư mục lưu audit logs
               mkdir -p /var/log/kubernetes /etc/rancher/k3s
@@ -132,9 +200,26 @@ resource "aws_instance" "k3s_master" {
                 --kube-apiserver-arg=audit-log-maxsize=100 \
                 --kube-apiserver-arg=audit-log-maxbackup=3" sh -
 
-              # Lưu node token để quản trị
+              # Cấp quyền đọc k3s.yaml
               sleep 10
               chmod 644 /etc/rancher/k3s/k3s.yaml
+              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+              # Đợi K3s server sẵn sàng
+              until /usr/local/bin/kubectl get nodes; do
+                sleep 3
+              done
+
+              # Cài đặt Ingress-Nginx Controller (LoadBalancer qua ServiceLB k3s)
+              /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml || true
+
+              # Clone repo và áp dụng toàn bộ manifests Online Boutique + Network Policies
+              apt-get update -y && apt-get install -y git
+              git clone https://github.com/vinh25042005/ncs_project.git /tmp/ncs_project || true
+              if [ -d "/tmp/ncs_project/k8s" ]; then
+                sed -i 's/type: LoadBalancer/type: ClusterIP/g' /tmp/ncs_project/k8s/01-online-boutique.yaml
+                /usr/local/bin/kubectl apply -k /tmp/ncs_project/k8s/ || true
+              fi
               EOF
 
   tags = {

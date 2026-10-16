@@ -9,13 +9,14 @@ terraform {
 
   # Cấu hình lưu trữ State tập trung trên S3 + State Locking (chống 2 người apply cùng lúc)
   backend "s3" {
-    bucket         = "ncs-project-tfstate" # Thay bằng tên S3 bucket sinh ra từ terraform/bootstrap/
+    bucket         = "ncs-project-tfstate-yuzdm6"
     key            = "prod/terraform.tfstate"
     region         = "ap-southeast-1"
     encrypt        = true
-    dynamodb_table = "ncs-project-tflocks" # Bảng DynamoDB quản lý LockID
-    use_lockfile   = true                  # S3 native locking (Terraform >= 1.10)
+    dynamodb_table = "ncs-project-tflocks"
+    use_lockfile   = true
   }
+
 }
 
 
