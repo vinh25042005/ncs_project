@@ -115,9 +115,9 @@ resource "aws_instance" "pfsense" {
               iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
               iptables -A FORWARD -i "$LAN_DEV" -o "$WAN_DEV" -j ACCEPT
 
-              # 2. Port Forwarding HTTP (80) & HTTPS (443) tới K3s Master (10.0.10.10)
-              iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 10.0.10.10:80
-              iptables -t nat -A PREROUTING -p tcp --dport 443 -j DNAT --to-destination 10.0.10.10:443
+              # 2. Port Forwarding HTTP (80) & HTTPS (443) từ WAN tới K3s Master (10.0.10.10)
+              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 80 -j DNAT --to-destination 10.0.10.10:80
+              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 443 -j DNAT --to-destination 10.0.10.10:443
               iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 80 -j ACCEPT
               iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 443 -j ACCEPT
 
