@@ -1,87 +1,108 @@
 variable "project_name" {
-  type    = string
-  default = "ncs-project"
+  description = "Tên dự án sử dụng để gắn nhãn (tag) tài nguyên"
+  type        = string
+  default     = "ncs-project"
 }
 
 variable "region" {
-  type    = string
-  default = "ap-southeast-1"
+  description = "AWS Region triển khai hạ tầng"
+  type        = string
+  default     = "ap-southeast-1"
 }
 
 variable "aws_profile" {
-  type    = string
-  default = "default"
+  description = "Tên AWS CLI Profile được cấu hình trên máy"
+  type        = string
+  default     = "default"
 }
 
 variable "availability_zone" {
-  type    = string
-  default = "ap-southeast-1a"
+  description = "AWS Availability Zone triển khai tài nguyên"
+  type        = string
+  default     = "ap-southeast-1a"
 }
 
 variable "key_name" {
+  description = "Tên AWS EC2 Key Pair dùng để SSH vào các máy chủ"
   type        = string
   default     = "ncs-key"
-  description = "Tên AWS EC2 Key Pair dùng để SSH vào các máy chủ"
 }
 
 variable "admin_cidr" {
+  description = "Địa chỉ IP/CIDR của bạn được phép truy cập SSH, pfSense GUI và Wazuh Dashboard (Khuyến nghị điền IP cá nhân thay vì 0.0.0.0/0)"
   type        = string
   default     = "0.0.0.0/0"
-  description = "Địa chỉ IP/CIDR của bạn được phép truy cập SSH, pfSense GUI và Wazuh Dashboard"
 }
 
 variable "vpc_cidr" {
-  type    = string
-  default = "10.0.0.0/16"
+  description = "Dải CIDR block cho VPC ncs-project"
+  type        = string
+  default     = "10.0.0.0/16"
 }
 
 variable "public_wan_cidr" {
-  type    = string
-  default = "10.0.1.0/24"
+  description = "Dải CIDR cho Public Subnet (WAN) dành cho pfSense Firewall"
+  type        = string
+  default     = "10.0.1.0/24"
 }
 
 variable "private_k8s_cidr" {
-  type    = string
-  default = "10.0.10.0/24"
+  description = "Dải CIDR cho Private Subnet (LAN) dành cho K3s Cluster"
+  type        = string
+  default     = "10.0.10.0/24"
 }
 
 variable "mgmt_cidr" {
-  type    = string
-  default = "10.0.20.0/24"
+  description = "Dải CIDR cho Management Subnet dành cho Wazuh SIEM Server"
+  type        = string
+  default     = "10.0.20.0/24"
 }
 
 variable "pfsense_ami_id" {
+  description = "AMI ID của pfSense Community Edition / Plus trên AWS Marketplace (nếu để trống sẽ dùng Ubuntu Security Gateway + Suricata)"
   type        = string
   default     = ""
-  description = "AMI ID của pfSense Community Edition / Plus trên AWS Marketplace (nếu để trống sẽ dùng Ubuntu Security Gateway + Suricata)"
 }
 
 variable "pfsense_instance_type" {
-  type    = string
-  default = "t3.medium"
+  description = "Loại máy chủ EC2 cho pfSense Firewall"
+  type        = string
+  default     = "t3.medium"
 }
 
 variable "pfsense_lan_ip" {
-  type    = string
-  default = "10.0.10.254"
+  description = "Địa chỉ IP cổng LAN của pfSense trong mạng nội bộ K3s"
+  type        = string
+  default     = "10.0.10.254"
 }
 
 variable "k3s_master_instance_type" {
-  type    = string
-  default = "t3.medium"
+  description = "Loại máy chủ EC2 cho K3s Control Plane Node"
+  type        = string
+  default     = "t3.medium"
 }
 
 variable "k3s_worker_instance_type" {
-  type    = string
-  default = "t3.small"
+  description = "Loại máy chủ EC2 cho K3s Worker Nodes"
+  type        = string
+  default     = "t3.small"
 }
 
 variable "worker_count" {
-  type    = number
-  default = 1
+  description = "Số lượng K3s Worker Nodes"
+  type        = number
+  default     = 1
 }
 
 variable "wazuh_instance_type" {
-  type    = string
-  default = "t3.medium"
+  description = "Loại máy chủ EC2 cho Wazuh SIEM Server"
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "k3s_cluster_token" {
+  description = "Token bí mật dùng để xác thực và kết nối Worker vào K3s Master"
+  type        = string
+  default     = "ncs-secret-cluster-token-2026"
+  sensitive   = true
 }

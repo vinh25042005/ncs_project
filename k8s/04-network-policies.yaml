@@ -29,9 +29,13 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: loadgenerator
       ports:
         - protocol: TCP
           port: 8080
+
 ---
 # Cart Service: chỉ nhận traffic từ Frontend và CheckoutService
 apiVersion: networking.k8s.io/v1

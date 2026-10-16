@@ -123,15 +123,16 @@ resource "aws_instance" "k3s_master" {
                 - level: Metadata
               POLICY
 
-              # Cài K3s với Audit Logging kích hoạt
+              # Cài K3s với Audit Logging kích hoạt và Cluster Token
               curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
+                --token=${var.k3s_cluster_token} \
                 --disable traefik \
                 --kube-apiserver-arg=audit-log-path=/var/log/kubernetes/audit.log \
                 --kube-apiserver-arg=audit-policy-file=/etc/rancher/k3s/audit-policy.yaml \
                 --kube-apiserver-arg=audit-log-maxsize=100 \
                 --kube-apiserver-arg=audit-log-maxbackup=3" sh -
 
-              # Lưu node token để worker join
+              # Lưu node token để quản trị
               sleep 10
               chmod 644 /etc/rancher/k3s/k3s.yaml
               EOF
@@ -142,7 +143,7 @@ resource "aws_instance" "k3s_master" {
   }
 }
 
-# K3s Worker Node
+# K3s Worker Node (Tự động kết nối vào Master)
 resource "aws_instance" "k3s_worker" {
   count                  = var.worker_count
   ami                    = data.aws_ami.ubuntu.id
@@ -155,6 +156,25 @@ resource "aws_instance" "k3s_worker" {
     volume_size = 20
     volume_type = "gp3"
   }
+
+  user_data = <<-EOF
+              #!/bin/bash
+              set -e
+
+              # OS Hardening cơ bản
+              echo "net.ipv4.conf.all.rp_filter = 1" >> /etc/sysctl.d/99-security.conf
+              echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/99-security.conf
+              sysctl --system
+
+              # Đợi K3s Master khởi động xong cổng 6443
+              until curl -sk https://${aws_instance.k3s_master.private_ip}:6443/ping >/dev/null 2>&1; do
+                echo "Đang đợi K3s Master sẵn sàng..."
+                sleep 5
+              done
+
+              # Cài đặt K3s Agent và tự động kết nối vào Master
+              curl -sfL https://get.k3s.io | K3S_URL="https://${aws_instance.k3s_master.private_ip}:6443" K3S_TOKEN="${var.k3s_cluster_token}" sh -
+              EOF
 
   tags = {
     Name = "${var.project_name}-k3s-worker-${count.index + 1}"
