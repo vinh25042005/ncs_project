@@ -88,18 +88,29 @@ Toàn bộ namespace `online-boutique` áp dụng nguyên tắc **Default Deny**
 
 ## 5. Hướng dẫn Triển khai nhanh
 
-### Bước 1: Triển khai toàn bộ ứng dụng lên K3s
+### Bước 1: Khởi tạo hạ tầng trên AWS bằng Terraform
 ```bash
+cd terraform/
+cp terraform.tfvars.example terraform.tfvars
+# Điền key_name và cấu hình cần thiết trong terraform.tfvars
+terraform init
+terraform apply
+```
+*Terraform sẽ tự động tạo:*
+- **VPC** 3 tầng mạng: WAN (Public), K3s (Private), Wazuh (Management).
+- **pfSense / Security Gateway** (Dual-ENI: WAN có Elastic IP, LAN làm Gateway cho K3s).
+- **Cụm K3s (Master + Worker)** trong mạng Private, kích hoạt sẵn K8s API Audit Logging.
+- **Wazuh SIEM Server** thu thập log và bảng điều khiển SOC.
+
+---
+
+### Bước 2: Triển khai toàn bộ ứng dụng lên K3s
+Trên máy chủ K3s Master:
+```bash
+# Triển khai toàn bộ 11 microservices + Ingress + HPA + Network Policies
 kubectl apply -k k8s/
-```
-*(Hoặc dùng `kubectl apply -f k8s/ -n online-boutique`)*
 
-### Bước 2: Kiểm tra trạng thái các Pods và Services
-```bash
-kubectl get pods,svc,ingress,hpa -n online-boutique
+# Kiểm tra trạng thái
+kubectl get pods,svc,ingress,hpa,networkpolicy -n online-boutique
 ```
 
-### Bước 3: Kiểm tra Network Policies
-```bash
-kubectl get networkpolicy -n online-boutique
-```

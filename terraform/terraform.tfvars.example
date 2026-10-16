@@ -1,0 +1,19 @@
+# Cấu hình mẫu cho Terraform (Đổi tên thành terraform.tfvars khi apply)
+
+project_name      = "ncs-project"
+region            = "ap-southeast-1"
+aws_profile       = "default"
+availability_zone = "ap-southeast-1a"
+
+# Tên EC2 Key Pair trên AWS Console
+key_name   = "ncs-key"
+
+# Giới hạn IP của bạn để truy cập quản trị an toàn (ví dụ: "14.232.x.x/32")
+admin_cidr = "0.0.0.0/0"
+
+# Cấu hình quy mô máy chủ
+worker_count             = 1
+k3s_master_instance_type = "t3.medium"
+k3s_worker_instance_type = "t3.small"
+pfsense_instance_type    = "t3.medium"
+wazuh_instance_type      = "t3.medium"
