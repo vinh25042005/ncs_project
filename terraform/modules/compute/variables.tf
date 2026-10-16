@@ -15,8 +15,14 @@ variable "public_wan_subnet_id" {
 }
 
 variable "private_k8s_subnet_id" {
-  description = "ID của Private Subnet (LAN) dành cho K3s Cluster"
+  description = "ID của Private Subnet (LAN AZ-a) dành cho K3s Cluster"
   type        = string
+}
+
+variable "private_k8s_subnet_b_id" {
+  description = "ID của Private Subnet (LAN AZ-b) dành cho K3s Worker Node thứ 2"
+  type        = string
+  default     = ""
 }
 
 variable "mgmt_subnet_id" {
@@ -53,7 +59,7 @@ variable "pfsense_ami_id" {
 variable "pfsense_instance_type" {
   description = "Loại máy chủ EC2 cho pfSense Firewall"
   type        = string
-  default     = "t2.small"
+  default     = "t3.small"
 }
 
 variable "pfsense_lan_ip" {
@@ -71,7 +77,7 @@ variable "k3s_master_instance_type" {
 variable "k3s_worker_instance_type" {
   description = "Loại máy chủ EC2 cho K3s Worker Nodes"
   type        = string
-  default     = "t2.small"
+  default     = "t3.small"
 }
 
 variable "worker_count" {
@@ -80,16 +86,28 @@ variable "worker_count" {
   default     = 2
 }
 
+variable "enable_wazuh" {
+  description = "Bật/Tắt máy chủ Wazuh SIEM EC2 riêng biệt (mặc định tắt để nhường vCPU cho 2 Worker)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_rancher_vm" {
+  description = "Bật/Tắt máy chủ Rancher EC2 riêng biệt (mặc định tắt, Rancher chạy trực tiếp trên K3s)"
+  type        = bool
+  default     = false
+}
+
 variable "rancher_instance_type" {
-  description = "Loại máy chủ EC2 cho Rancher Management Server"
+  description = "Loại máy chủ EC2 cho Rancher Management Server nếu bật VM riêng"
   type        = string
   default     = "c7i-flex.large"
 }
 
 variable "wazuh_instance_type" {
-  description = "Loại máy chủ EC2 cho Wazuh SIEM Server"
+  description = "Loại máy chủ EC2 cho Wazuh SIEM Server nếu bật"
   type        = string
-  default     = "t2.small"
+  default     = "t3.small"
 }
 
 variable "k3s_cluster_token" {

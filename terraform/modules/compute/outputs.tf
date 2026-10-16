@@ -24,21 +24,21 @@ output "k3s_worker_private_ips" {
 }
 
 output "wazuh_public_ip" {
-  description = "Địa chỉ Public IP của máy chủ Wazuh SIEM"
-  value       = aws_instance.wazuh.public_ip
+  description = "Địa chỉ Public IP của máy chủ Wazuh SIEM (nếu bật)"
+  value       = try(aws_instance.wazuh[0].public_ip, "")
 }
 
 output "wazuh_private_ip" {
-  description = "Địa chỉ Private IP của máy chủ Wazuh SIEM trong VPC"
-  value       = aws_instance.wazuh.private_ip
+  description = "Địa chỉ Private IP của máy chủ Wazuh SIEM trong VPC (nếu bật)"
+  value       = try(aws_instance.wazuh[0].private_ip, "")
 }
 
 output "rancher_public_ip" {
-  description = "Địa chỉ Public IP của máy chủ Rancher Management"
-  value       = aws_instance.rancher.public_ip
+  description = "Địa chỉ Public IP của máy chủ Rancher Management (nếu bật VM riêng)"
+  value       = try(aws_instance.rancher[0].public_ip, "")
 }
 
 output "rancher_private_ip" {
-  description = "Địa chỉ Private IP của máy chủ Rancher Management trong VPC"
-  value       = aws_instance.rancher.private_ip
+  description = "Địa chỉ Private IP của máy chủ Rancher Management trong VPC (nếu bật VM riêng)"
+  value       = try(aws_instance.rancher[0].private_ip, "")
 }

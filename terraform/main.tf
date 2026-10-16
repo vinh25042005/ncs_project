@@ -25,15 +25,16 @@ provider "aws" {
   profile = var.aws_profile
 }
 
-# 1. Module Mạng (VPC, Subnet WAN, Subnet Private K8s, Subnet Mgmt Wazuh)
+# 1. Module Mạng Multi-AZ (VPC, Subnet WAN, Subnet Private K8s A&B, Subnet Mgmt)
 module "network" {
-  source            = "./modules/network"
-  project_name      = var.project_name
-  vpc_cidr          = var.vpc_cidr
-  public_wan_cidr   = var.public_wan_cidr
-  private_k8s_cidr  = var.private_k8s_cidr
-  mgmt_cidr         = var.mgmt_cidr
-  availability_zone = var.availability_zone
+  source              = "./modules/network"
+  project_name        = var.project_name
+  vpc_cidr            = var.vpc_cidr
+  public_wan_cidr     = var.public_wan_cidr
+  private_k8s_cidr    = var.private_k8s_cidr
+  mgmt_cidr           = var.mgmt_cidr
+  availability_zone   = var.availability_zone
+  availability_zone_b = var.availability_zone_b
 }
 
 # 2. Module Security Groups (pfSense SG, K3s Private SG, Wazuh SG)
@@ -45,13 +46,14 @@ module "security" {
   admin_cidr   = var.admin_cidr
 }
 
-# 3. Module Compute (pfSense Gateway, K3s Master & Worker, Wazuh SIEM)
+# 3. Module Compute (pfSense Gateway, K3s Master & Multi-AZ Workers)
 module "compute" {
   source                   = "./modules/compute"
   project_name             = var.project_name
   key_name                 = var.key_name
   public_wan_subnet_id     = module.network.public_wan_subnet_id
   private_k8s_subnet_id    = module.network.private_k8s_subnet_id
+  private_k8s_subnet_b_id  = module.network.private_k8s_subnet_b_id
   mgmt_subnet_id           = module.network.mgmt_subnet_id
   pfsense_sg_id            = module.security.pfsense_sg_id
   k3s_sg_id                = module.security.k3s_sg_id
@@ -63,6 +65,8 @@ module "compute" {
   k3s_master_instance_type = var.k3s_master_instance_type
   k3s_worker_instance_type = var.k3s_worker_instance_type
   worker_count             = var.worker_count
+  enable_wazuh             = var.enable_wazuh
+  enable_rancher_vm        = var.enable_rancher_vm
   rancher_instance_type    = var.rancher_instance_type
   wazuh_instance_type      = var.wazuh_instance_type
   k3s_cluster_token        = var.k3s_cluster_token

@@ -8,19 +8,24 @@ output "pfsense_firewall_lan_ip" {
   value       = module.compute.pfsense_lan_ip
 }
 
+output "boutique_web_url" {
+  description = "URL truy cập trực tiếp Google Online Boutique"
+  value       = "http://${module.compute.pfsense_public_ip}"
+}
+
+output "rancher_k3s_dashboard_url" {
+  description = "URL truy cập Rancher Dashboard trên cụm K3s"
+  value       = "https://rancher.lab (Trỏ domain rancher.lab về IP ${module.compute.pfsense_public_ip} trong /etc/hosts)"
+}
+
 output "wazuh_siem_dashboard_url" {
   description = "URL truy cập Wazuh SIEM Dashboard"
-  value       = "https://${module.compute.wazuh_public_ip}"
+  value       = var.enable_wazuh ? "https://${module.compute.wazuh_public_ip}" : "Tắt để tối ưu 8 vCPUs cho 2 K3s Workers"
 }
 
-output "rancher_dashboard_url" {
-  description = "URL truy cập Rancher Kubernetes Management Dashboard"
-  value       = "https://${module.compute.rancher_public_ip}"
-}
-
-output "rancher_bootstrap_password_cmd" {
-  description = "Lệnh lấy mật khẩu khởi tạo (Bootstrap Password) của Rancher Server"
-  value       = "ssh -i ~/.ssh/${var.key_name}.pem ubuntu@${module.compute.rancher_public_ip} \"sudo docker logs rancher-server 2>&1 | grep 'Bootstrap Password:'\""
+output "rancher_vm_dashboard_url" {
+  description = "URL truy cập Rancher VM riêng biệt (nếu bật)"
+  value       = var.enable_rancher_vm ? "https://${module.compute.rancher_public_ip}" : "Đang chạy trực tiếp trên K3s Cluster"
 }
 
 output "k3s_master_private_ip" {

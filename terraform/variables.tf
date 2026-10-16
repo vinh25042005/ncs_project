@@ -17,9 +17,15 @@ variable "aws_profile" {
 }
 
 variable "availability_zone" {
-  description = "AWS Availability Zone triển khai tài nguyên"
+  description = "AWS Availability Zone A"
   type        = string
   default     = "ap-southeast-1a"
+}
+
+variable "availability_zone_b" {
+  description = "AWS Availability Zone B (cho Multi-AZ)"
+  type        = string
+  default     = "ap-southeast-1b"
 }
 
 variable "key_name" {
@@ -67,7 +73,7 @@ variable "pfsense_ami_id" {
 variable "pfsense_instance_type" {
   description = "Loại máy chủ EC2 cho pfSense Firewall"
   type        = string
-  default     = "t2.small"
+  default     = "t3.small"
 }
 
 variable "pfsense_lan_ip" {
@@ -85,7 +91,7 @@ variable "k3s_master_instance_type" {
 variable "k3s_worker_instance_type" {
   description = "Loại máy chủ EC2 cho K3s Worker Nodes"
   type        = string
-  default     = "t2.small"
+  default     = "t3.small"
 }
 
 variable "worker_count" {
@@ -94,16 +100,28 @@ variable "worker_count" {
   default     = 2
 }
 
+variable "enable_wazuh" {
+  description = "Bật/Tắt máy chủ Wazuh SIEM EC2 riêng biệt (mặc định tắt để nhường vCPU cho 2 Worker)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_rancher_vm" {
+  description = "Bật/Tắt máy chủ Rancher EC2 riêng biệt (mặc định tắt, Rancher chạy trực tiếp trên K3s)"
+  type        = bool
+  default     = false
+}
+
 variable "rancher_instance_type" {
-  description = "Loại máy chủ EC2 cho Rancher Management Server"
+  description = "Loại máy chủ EC2 cho Rancher Management Server nếu bật VM riêng"
   type        = string
   default     = "c7i-flex.large"
 }
 
 variable "wazuh_instance_type" {
-  description = "Loại máy chủ EC2 cho Wazuh SIEM Server"
+  description = "Loại máy chủ EC2 cho Wazuh SIEM Server nếu bật"
   type        = string
-  default     = "t2.small"
+  default     = "t3.small"
 }
 
 variable "k3s_cluster_token" {

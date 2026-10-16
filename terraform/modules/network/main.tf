@@ -19,7 +19,7 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-# 1. Public Subnet (WAN pfSense)
+# 1. Public Subnet (WAN pfSense) - AZ-a & AZ-b
 resource "aws_subnet" "public_wan" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_wan_cidr
@@ -27,24 +27,47 @@ resource "aws_subnet" "public_wan" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project_name}-subnet-public-wan"
+    Name = "${var.project_name}-subnet-public-wan-a"
     Role = "firewall-wan"
   }
 }
 
-# 2. Private Subnet (K3s Cluster - Master & Workers)
+resource "aws_subnet" "public_wan_b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_wan_b_cidr
+  availability_zone       = var.availability_zone_b
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project_name}-subnet-public-wan-b"
+    Role = "firewall-wan"
+  }
+}
+
+# 2. Private Subnets (K3s Cluster - Master & Workers qua 2 AZs)
 resource "aws_subnet" "private_k8s" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = var.private_k8s_cidr
   availability_zone = var.availability_zone
 
   tags = {
-    Name = "${var.project_name}-subnet-private-k8s"
+    Name = "${var.project_name}-subnet-private-k8s-a"
     Role = "k8s-nodes"
   }
 }
 
-# 3. Management Subnet (Wazuh SIEM)
+resource "aws_subnet" "private_k8s_b" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_k8s_b_cidr
+  availability_zone = var.availability_zone_b
+
+  tags = {
+    Name = "${var.project_name}-subnet-private-k8s-b"
+    Role = "k8s-nodes"
+  }
+}
+
+# 3. Management Subnet (Wazuh SIEM / Rancher)
 resource "aws_subnet" "mgmt" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.mgmt_cidr
@@ -76,6 +99,11 @@ resource "aws_route_table_association" "public_wan" {
   route_table_id = aws_route_table.public.id
 }
 
+resource "aws_route_table_association" "public_wan_b" {
+  subnet_id      = aws_subnet.public_wan_b.id
+  route_table_id = aws_route_table.public.id
+}
+
 resource "aws_route_table_association" "mgmt" {
   subnet_id      = aws_subnet.mgmt.id
   route_table_id = aws_route_table.public.id
@@ -101,5 +129,10 @@ resource "aws_route_table" "private" {
 
 resource "aws_route_table_association" "private_k8s" {
   subnet_id      = aws_subnet.private_k8s.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_k8s_b" {
+  subnet_id      = aws_subnet.private_k8s_b.id
   route_table_id = aws_route_table.private.id
 }

@@ -226,6 +226,22 @@ resource "aws_instance" "k3s_master" {
                 sed -i 's/type: LoadBalancer/type: ClusterIP/g' /tmp/ncs_project/k8s/01-online-boutique.yaml
                 /usr/local/bin/kubectl apply -k /tmp/ncs_project/k8s/ || true
               fi
+
+              # Cài đặt Helm & Cert-Manager để chạy Rancher Dashboard trên K3s
+              curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash || true
+              /usr/local/bin/kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml || true
+              /usr/local/bin/kubectl wait --for=condition=available --timeout=120s -n cert-manager deployment/cert-manager-webhook || sleep 15
+
+              # Cài đặt Rancher Server trên K3s
+              helm repo add rancher-stable https://releases.rancher.com/server-charts/stable || true
+              helm repo update || true
+              helm install rancher rancher-stable/rancher \
+                --namespace cattle-system \
+                --create-namespace \
+                --set hostname=rancher.lab \
+                --set bootstrapPassword=admin \
+                --set replicas=1 \
+                --set ingress.ingressClassName=nginx || true
               EOF
 
   tags = {
@@ -234,13 +250,13 @@ resource "aws_instance" "k3s_master" {
   }
 }
 
-# K3s Worker Node (Tự động kết nối vào Master)
+# K3s Worker Node (Tự động kết nối vào Master - Phân bổ qua 2 AZ: AZ-a & AZ-b)
 resource "aws_instance" "k3s_worker" {
   count                  = var.worker_count
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.k3s_worker_instance_type
   key_name               = var.key_name
-  subnet_id              = var.private_k8s_subnet_id
+  subnet_id              = count.index % 2 == 0 ? var.private_k8s_subnet_id : (var.private_k8s_subnet_b_id != "" ? var.private_k8s_subnet_b_id : var.private_k8s_subnet_id)
   vpc_security_group_ids = [var.k3s_sg_id]
 
   root_block_device {
@@ -274,10 +290,11 @@ resource "aws_instance" "k3s_worker" {
 }
 
 # ─────────────────────────────────────────────────────────────
-# 3. Wazuh SIEM Server (Quản lý log an ninh, SIEM Dashboard & SOAR)
+# 3. Wazuh SIEM Server (Tùy chọn - Mặc định tắt để nhường vCPU cho 2 Worker)
 # ─────────────────────────────────────────────────────────────
 
 resource "aws_instance" "wazuh" {
+  count                       = var.enable_wazuh ? 1 : 0
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.wazuh_instance_type
   key_name                    = var.key_name
@@ -297,10 +314,11 @@ resource "aws_instance" "wazuh" {
 }
 
 # ─────────────────────────────────────────────────────────────
-# 4. Rancher Management Server (Web Dashboard quản trị K8s)
+# 4. Rancher Management Server (Tùy chọn máy ảo riêng nếu có thêm vCPU)
 # ─────────────────────────────────────────────────────────────
 
 resource "aws_instance" "rancher" {
+  count                       = var.enable_rancher_vm ? 1 : 0
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.rancher_instance_type
   key_name                    = var.key_name
