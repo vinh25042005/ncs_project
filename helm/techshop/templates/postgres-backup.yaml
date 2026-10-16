@@ -1,0 +1,53 @@
+{{- if .Values.postgres.enabled }}
+{{- if .Values.postgres.backup.enabled }}
+# ── Backup CronJob: dump DB lên S3 mỗi 6h ──
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  schedule: "{{ .Values.postgres.backup.schedule }}"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: postgres-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: postgres:16-alpine
+            env:
+            - name: PGHOST
+              value: "postgres"
+            - name: PGUSER
+              value: {{ .Values.postgres.user | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.postgres.database | quote }}
+            - name: S3_BUCKET
+              value: {{ .Values.postgres.backup.s3Bucket | quote }}
+            - name: AWS_REGION
+              value: {{ .Values.postgres.backup.s3Region | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-secret, key: password }   # mentor: pipeline/Ansible tạo từ Vault
+            securityContext:
+              allowPrivilegeEscalation: false
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache aws-cli >/dev/null 2>&1
+              FILE="backup-$(date +%Y%m%d-%H%M%S).sql.gz"
+              pg_dump -h $PGHOST -U $PGUSER -d $PGDATABASE | gzip > /tmp/$FILE
+              sha256sum /tmp/$FILE | awk '{print $1 "  " "'"$FILE"'"}' > /tmp/$FILE.sha256
+              aws s3 cp /tmp/$FILE s3://$S3_BUCKET/$FILE
+              aws s3 cp /tmp/$FILE.sha256 s3://$S3_BUCKET/$FILE.sha256
+              echo "Backup: s3://$S3_BUCKET/$FILE"
+{{- end }}
+{{- end }}

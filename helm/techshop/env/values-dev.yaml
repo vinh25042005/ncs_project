@@ -1,0 +1,35 @@
+images:
+  backend: docker.io/vinh2504/deploy-web-backend:dev
+  frontend: docker.io/vinh2504/deploy-web-frontend:dev
+
+backend:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 300m, memory: 128Mi }
+
+frontend:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 300m, memory: 128Mi }
+
+postgres:
+  storage:
+    size: 5Gi
+
+config:
+  nodeEnv: development
+  frontendUrl: http://localhost:3000
+
+hpa:
+  enabled: false
+
+ingress:
+  host: dev.techshop.local
+
+monitoring:
+  loki:
+    enabled: false
+  promtail:
+    enabled: false

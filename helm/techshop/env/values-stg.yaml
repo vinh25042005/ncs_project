@@ -1,0 +1,29 @@
+storage:
+  ebsCSI:
+    enabled: false       # Terraform cài cluster-wide trong kube-system — không env nào cần cài riêng
+
+namespace: techshop-stg
+
+images:
+  backend: docker.io/vinh2504/deploy-web-backend:stg     # Rolling tag stg — Jenkins build ENV=stg sẽ push tag 'stg' + ghi .argocd-source override
+  frontend: docker.io/vinh2504/deploy-web-frontend:stg   # Build đủ backend+frontend (BUILD_FULL) thì override sẽ có cả 2
+
+backend:
+  replicas: 2
+
+frontend:
+  replicas: 2
+
+config:
+  nodeEnv: staging
+
+ingress-nginx:
+  enabled: true           # dev đã tắt (không còn controller dùng chung) → stg tự deploy ingress-nginx
+
+ingress:
+  className: nginx        # Dùng chung ingress class với dev
+  host: stg.techshop.local
+
+monitoring:
+  enabled: true     # dev đã tắt (stack cũ bị prune theo) → stg tự cài kube-prometheus-stack (Prometheus + Grafana)
+  prometheusAddress: http://techshop-stg-kube-promethe-prometheus.techshop-stg.svc.cluster.local:9090   # FQDN có namespace (Argo Rollouts ở ns argo-rollouts không resolve được tên ngắn)

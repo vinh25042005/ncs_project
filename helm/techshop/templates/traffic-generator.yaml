@@ -1,0 +1,37 @@
+{{- if .Values.backend.enabled }}
+# ─── Traffic generator nền (cho AnalysisTemplate service=backend) ───
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: api-traffic-generator
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: generator
+              image: curlimages/curl:8.9.1
+              imagePullPolicy: IfNotPresent
+              command:
+                - sh
+                - -c
+                - |
+                  CONTROLLER="https://{{ .Release.Name }}-ingress-nginx-controller"
+                  HOST="{{ .Values.ingress.host }}"
+                  echo "== traffic generator: $HOST/api/health =="
+                  for i in $(seq 1 120); do
+                    code=$(curl -sk --max-time 5 -o /dev/null -w "%{http_code}" -H "Host: $HOST" "$CONTROLLER/api/health" || echo "000")
+                    echo "req $i -> $code"
+                    sleep 0.5
+                  done
+                  echo "traffic-done"
+{{- end }}

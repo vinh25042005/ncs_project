@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+# =============================================================================
+# vault-init.sh — Initialize + configure HashiCorp Vault on K8s
+# Usage: vault-init.sh <aws-region>
+# =============================================================================
+set -euo pipefail
+
+REGION="${1:-ap-southeast-1}"
+VAULT_NS="vault"
+VAULT_POD="vault-0"
+SSM_PREFIX="/techshop"
+
+echo ">>> [1/9] Waiting for Vault pod to be Running (not Ready — Vault needs init first)..."
+for i in $(seq 1 30); do
+  PHASE=$(kubectl get pod -n "$VAULT_NS" "$VAULT_POD" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+  if [ "$PHASE" = "Running" ]; then
+    echo "  Pod is Running!"
+    break
+  fi
+  if [ $i -eq 30 ]; then
+    echo "ERROR: Vault pod not Running after 5 minutes!"
+    kubectl describe pod -n "$VAULT_NS" "$VAULT_POD" | tail -10
+    exit 1
+  fi
+  sleep 10
+done
+
+# ── Chờ Vault API reachable (pod Running ≠ server đã listen 8200) ────────
+# Vault có thể mất vài chục giây để boot (gọi KMS lúc khởi động). Nếu cứ
+# chạy vault status/init ngay sẽ dính "connection refused".
+echo ">>> [1b] Waiting for Vault API to be reachable (port 8200)..."
+INIT_STATUS=""
+for i in $(seq 1 18); do
+  INIT_STATUS=$(kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- vault status -format=json 2>/dev/null || echo "")
+  if [ -n "$INIT_STATUS" ]; then
+    echo "  Vault API reachable (attempt $i)"
+    break
+  fi
+  if [ $i -eq 18 ]; then
+    echo "ERROR: Vault API không reachable sau 3 phút!"
+    kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- vault status 2>&1 | tail -5 || true
+    kubectl logs -n "$VAULT_NS" "$VAULT_POD" --tail=15 2>/dev/null || true
+    exit 1
+  fi
+  sleep 10
+done
+
+# ── Check if already initialized ──────────────────────────────────────────
+ALREADY_INIT=$(echo "$INIT_STATUS" | jq -r '.initialized // false')
+
+if [ "$ALREADY_INIT" == "true" ]; then
+  echo ">>> [SKIP] Vault already initialized. Unsealing if needed..."
+  SEALED=$(echo "$INIT_STATUS" | jq -r '.sealed // false')
+  if [ "$SEALED" == "true" ]; then
+    UNSEAL_KEY=$(aws ssm get-parameter --name "$SSM_PREFIX/vault-unseal-key" --with-decryption --region "$REGION" --query Parameter.Value --output text 2>/dev/null || echo "")
+    if [ -n "$UNSEAL_KEY" ]; then
+      kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- vault operator unseal "$UNSEAL_KEY"
+    else
+      echo "ERROR: Vault sealed but no unseal key in SSM!"
+      exit 1
+    fi
+  fi
+  exit 0
+fi
+
+# ── Init Vault (KMS auto-unseal — không dùng key-shares/threshold) ───────
+echo ">>> [2/9] Initializing Vault (KMS auto-unseal)..."
+INIT_JSON=$(kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- vault operator init -format=json)
+
+UNSEAL_KEY=$(echo "$INIT_JSON" | jq -r '.unseal_keys_b64[0] // "auto-unseal-kms"')
+ROOT_TOKEN=$(echo "$INIT_JSON" | jq -r '.root_token')
+
+echo ">>> [3/9] Storing root token + unseal key marker in AWS SSM..."
+aws ssm put-parameter --name "$SSM_PREFIX/vault-unseal-key" \
+  --value "$UNSEAL_KEY" --type SecureString --overwrite --region "$REGION"
+
+aws ssm put-parameter --name "$SSM_PREFIX/vault-root-token" \
+  --value "$ROOT_TOKEN" --type SecureString --overwrite --region "$REGION"
+
+# KMS auto-unseal: Vault tự unseal qua AWS KMS, không cần unseal thủ công
+echo ">>> [4/9] Verifying Vault auto-unseal via KMS..."
+SEALED_AFTER_INIT=$(kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- vault status -format=json | jq -r '.sealed // false')
+if [ "$SEALED_AFTER_INIT" == "true" ]; then
+  echo "ERROR: Vault still sealed after KMS auto-unseal! Check IAM/kms_key_id."
+  exit 1
+else
+  echo "  Vault is UNSEALED automatically via KMS ✅"
+fi
+
+# ── Enable secret engine + auth ───────────────────────────────────────────
+echo ">>> [5/9] Enabling KV secret engine..."
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault secrets enable -path=secret kv-v2 2>/dev/null || true
+
+echo ">>> [6/9] Enabling Kubernetes auth..."
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault auth enable kubernetes 2>/dev/null || true
+
+# ── Generate & store secrets ─────────────────────────────────────────────
+echo ">>> [7/9] Generating random secrets..."
+POSTGRES_PASS=$(openssl rand -base64 24 | tr -d '=/+' | cut -c1-24)
+JWT_SECRET=$(openssl rand -base64 48 | tr -d '=/+')
+GRAFANA_PASS=$(openssl rand -base64 16 | tr -d '=/+' | cut -c1-16)
+
+echo ">>> [7/9] Storing secrets in Vault..."
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv put secret/postgres password="$POSTGRES_PASS"
+
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv put secret/jwt secret="$JWT_SECRET"
+
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv put secret/grafana admin_password="$GRAFANA_PASS" admin_username="admin"
+
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv put secret/database url="postgresql://postgres:${POSTGRES_PASS}@postgres:5432/shopdb?schema=public"
+
+# ── Cosign public key (cho Kyverno verify image khi deploy) ──
+# Nếu có file cosign.pub trên host (sinh thủ công) thì lưu vào Vault.
+if [ -f "${COSIGN_PUB_PATH:-$HOME/cosign.pub}" ]; then
+  COSIGN_PUB=$(cat "${COSIGN_PUB_PATH:-$HOME/cosign.pub}")
+  kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv put secret/cosign public_key="$COSIGN_PUB" 2>/dev/null || true
+  echo "  ✅ Lưu cosign public key vào Vault (secret/cosign)"
+else
+  echo "  ⚠️ Không tìm thấy cosign.pub — bỏ qua (Kyverno verify sẽ không có key)"
+fi
+
+# ── Store passwords in SSM (để Terraform/Helm reference sau) ──────────────
+echo ">>> [7b] Storing passwords in AWS SSM for External Secrets..."
+aws ssm put-parameter --name "$SSM_PREFIX/postgres-password" \
+  --value "$POSTGRES_PASS" --type SecureString --overwrite --region "$REGION"
+aws ssm put-parameter --name "$SSM_PREFIX/jwt-secret" \
+  --value "$JWT_SECRET" --type SecureString --overwrite --region "$REGION"
+aws ssm put-parameter --name "$SSM_PREFIX/grafana-password" \
+  --value "$GRAFANA_PASS" --type SecureString --overwrite --region "$REGION"
+aws ssm put-parameter --name "$SSM_PREFIX/database-url" \
+  --value "postgresql://postgres:${POSTGRES_PASS}@postgres:5432/shopdb?schema=public" \
+  --type SecureString --overwrite --region "$REGION"
+
+# ── CI credentials vào Vault (luồng CI đọc TRỰC TIẾP từ Vault, không qua ESO) ──
+#   Giá trị lấy từ SSM (đã tồn tại: /techshop/github-token, /techshop/docker-pat).
+#   Thiếu token nào → bỏ qua path đó (kèm cảnh báo). Chạy lại configure-ci-vault.sh
+#   sau khi seed SSM là bổ sung được.
+echo ">>> [7c] Storing CI credentials in Vault (đọc từ SSM)..."
+
+CI_GITHUB_TOKEN=$(aws ssm get-parameter --name "$SSM_PREFIX/github-token" --with-decryption --region "$REGION" --query Parameter.Value --output text 2>/dev/null || echo "")
+if [ -n "$CI_GITHUB_TOKEN" ]; then
+  CI_GITHUB_USER=$(aws ssm get-parameter --name "$SSM_PREFIX/github-username" --with-decryption --region "$REGION" --query Parameter.Value --output text 2>/dev/null || echo "x-access-token")
+  kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv put secret/ci/github username="$CI_GITHUB_USER" token="$CI_GITHUB_TOKEN"
+else
+  echo "  ⚠️  SSM $SSM_PREFIX/github-token trống — bỏ qua secret/ci/github"
+fi
+
+CI_DOCKER_PAT=$(aws ssm get-parameter --name "$SSM_PREFIX/docker-pat" --with-decryption --region "$REGION" --query Parameter.Value --output text 2>/dev/null || echo "")
+if [ -n "$CI_DOCKER_PAT" ]; then
+  CI_DOCKER_USER=$(aws ssm get-parameter --name "$SSM_PREFIX/docker-username" --with-decryption --region "$REGION" --query Parameter.Value --output text 2>/dev/null || echo "vinh2504")
+  kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv put secret/ci/dockerhub username="$CI_DOCKER_USER" token="$CI_DOCKER_PAT"
+else
+  echo "  ⚠️  SSM $SSM_PREFIX/docker-pat trống — bỏ qua secret/ci/dockerhub"
+fi
+
+CI_SONAR_TOKEN=$(aws ssm get-parameter --name "$SSM_PREFIX/sonar-token" --with-decryption --region "$REGION" --query Parameter.Value --output text 2>/dev/null || echo "")
+if [ -n "$CI_SONAR_TOKEN" ]; then
+  kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv put secret/ci/sonar token="$CI_SONAR_TOKEN"
+else
+  echo "  ⚠️  SSM $SSM_PREFIX/sonar-token trống — bỏ qua secret/ci/sonar"
+fi
+
+CI_COSIGN_PRIVATE_KEY=$(aws ssm get-parameter --name "$SSM_PREFIX/cosign-private-key" --with-decryption --region "$REGION" --query Parameter.Value --output text 2>/dev/null || echo "")
+if [ -n "$CI_COSIGN_PRIVATE_KEY" ]; then
+  kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv put secret/ci/cosign private_key="$CI_COSIGN_PRIVATE_KEY"
+else
+  echo "  ⚠️  SSM $SSM_PREFIX/cosign-private-key trống — bỏ qua secret/ci/cosign"
+fi
+
+# ── Configure K8s auth ────────────────────────────────────────────────────
+echo ">>> [8/9] Configuring Kubernetes auth..."
+SA_JWT=$(kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+SA_CA=$(kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)
+K8S_HOST=$(kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- sh -c 'echo $KUBERNETES_PORT_443_TCP_ADDR')
+
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault write auth/kubernetes/config \
+  token_reviewer_jwt="$SA_JWT" \
+  kubernetes_host="https://$K8S_HOST:443" \
+  kubernetes_ca_cert="$SA_CA"
+
+# ── Policy + Role ──────────────────────────────────────────────────────────
+echo ">>> [9/9] Creating policy + auth role..."
+# Policy cho application pods (chỉ truy cập secret ứng dụng, KHÔNG truy cập CI secrets)
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  sh -c 'cat > /tmp/techshop-app-policy.hcl << EOF
+path "secret/data/postgres"    { capabilities = ["read"] }
+path "secret/data/jwt"         { capabilities = ["read"] }
+path "secret/data/grafana"     { capabilities = ["read"] }
+path "secret/data/database"    { capabilities = ["read"] }
+path "secret/data/cosign"      { capabilities = ["read"] }
+EOF
+vault policy write techshop-app /tmp/techshop-app-policy.hcl
+vault policy write techshop /tmp/techshop-app-policy.hcl'
+
+# Policy riêng cho Jenkins CI (truy cập credentials GitHub, DockerHub, Cosign private key)
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  sh -c 'cat > /tmp/techshop-ci-policy.hcl << EOF
+path "secret/data/postgres"     { capabilities = ["read"] }
+path "secret/data/cosign"       { capabilities = ["read"] }
+path "secret/data/ci/github"    { capabilities = ["read"] }
+path "secret/data/ci/dockerhub" { capabilities = ["read"] }
+path "secret/data/ci/sonar"     { capabilities = ["read"] }
+path "secret/data/ci/cosign"    { capabilities = ["read"] }
+EOF
+vault policy write techshop-ci /tmp/techshop-ci-policy.hcl'
+
+# Role cho application workloads: chỉ được gán policy techshop-app (không đọc được CI secrets)
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault write auth/kubernetes/role/techshop \
+  bound_service_account_names="*" \
+  bound_service_account_namespaces="techshop-dev,techshop-stg" \
+  policies=techshop-app \
+  ttl=24h
+
+# Role riêng cho Jenkins CI — least privilege: chỉ SA jenkins-ci mới dùng được techshop-ci policy
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault write auth/kubernetes/role/techshop-jenkins \
+  bound_service_account_names="jenkins-ci" \
+  bound_service_account_namespaces="techshop-dev,techshop-stg" \
+  policies=techshop-ci \
+  ttl=1h
+
+# ── Dynamic Database Secrets (Postgres) ───────────────────────────────────
+# Lưu ý: postgres (techshop-dev) do ArgoCD deploy SAU terraform apply, nên
+# bước này chỉ thử NHANH 1 lần. Nếu postgres chưa lên (luôn đúng ở lần apply
+# đầu) → bỏ qua, terraform_data.configure_vault_db sẽ tự cấu hình sau khi
+# ArgoCD sync (chờ postgres Running rồi ghi config + test).
+echo ">>> [9b] Enabling Dynamic Database Secrets (fast attempt)..."
+kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault secrets enable database 2>/dev/null || true
+
+if kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault write database/config/techshop-postgres \
+    plugin_name=postgresql-database-plugin \
+    allowed_roles="techshop-role" \
+    connection_url="postgresql://{{username}}:{{password}}@postgres.techshop-dev.svc.cluster.local:5432/shopdb?sslmode=disable" \
+    username="postgres" \
+    password="$POSTGRES_PASS" >/dev/null 2>&1; then
+  echo "  ✅ database/config/techshop-postgres configured"
+  kubectl exec -n "$VAULT_NS" "$VAULT_POD" -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault write database/roles/techshop-role \
+    db_name="techshop-postgres" \
+    creation_statements='CREATE ROLE "{{name}}" WITH LOGIN PASSWORD '"'"'{{password}}'"'"' VALID UNTIL '"'"'{{expiration}}'"'"'; GRANT CONNECT ON DATABASE shopdb TO "{{name}}"; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{{name}}";' \
+    default_ttl="1h" \
+    max_ttl="24h" >/dev/null 2>&1 && echo "  ✅ database/roles/techshop-role configured"
+else
+  echo "  ⏭️  postgres chưa lên (bình thường ở apply đầu) — configure-vault-db.sh sẽ cấu hình sau khi ArgoCD sync."
+fi
+
+echo ""
+echo "============================================"
+echo "✅ Vault initialized and configured!"
+echo "   Postgres password: [SECURELY STORED IN VAULT & SSM]"
+echo "   JWT secret:       [SECURELY STORED IN VAULT & SSM]"
+echo "   Grafana password: [SECURELY STORED IN VAULT & SSM]"
+echo "============================================"
+echo ""
+echo "Unseal key & root token stored in AWS SSM:"
+echo "  /techshop/vault-unseal-key"
+echo "  /techshop/vault-root-token"
