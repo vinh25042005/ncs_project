@@ -231,7 +231,7 @@ Hạ tầng mạng và máy chủ được mã hóa toàn bộ dưới dạng Co
    # Chuyển tiếp cổng Rancher
    iptables -t nat -A PREROUTING -i ens5 -p tcp --dport 7443 -j DNAT --to-destination 10.0.10.10:30443
    # Chuyển tiếp cổng Wazuh SIEM
-   iptables -t nat -A PREROUTING -i ens5 -p tcp --dport 8443 -j DNAT --to-destination 10.0.10.10:9443
+   iptables -t nat -A PREROUTING -i ens5 -p tcp --dport 8443 -j DNAT --to-destination 10.0.10.10:55000
    iptables -t nat -A POSTROUTING -o ens6 -j MASQUERADE
    ```
 2. **Triển khai Suricata IDS**:
@@ -393,11 +393,11 @@ curl -I http://13.251.225.100/
 curl -k -I https://13.251.225.100:7443/
 # Kết quả: HTTP/1.1 200 OK (X-Api-Schemas: https://13.251.225.100:7443/meta/schemas)
 
-# Kiểm tra Wazuh SIEM Security Dashboard
-curl -k -I https://13.251.225.100:8443/
-# Kết quả: HTTP/1.1 302 Found (Chuyển hướng vào /app/login)
+# Kiểm tra Wazuh SIEM Endpoint & REST API
+curl -k -u wazuh:wazuh -X POST https://13.251.225.100:8443/security/user/authenticate
+# Kết quả: {"data": {"token": "eyJhbGciOi..."}, "error": 0} (HTTP/1.1 200 OK)
 ```
-👉 **Đánh giá**: Cả 3 giao diện Web đều phản hồi hoàn hảo trên các cổng độc lập, sẵn sàng phục vụ người dùng và người quản trị.
+👉 **Đánh giá**: Cả 3 dịch vụ đều phản hồi hoàn hảo trên các cổng độc lập (80, 7443, 8443), sẵn sàng phục vụ người dùng và người quản trị.
 
 ---
 
