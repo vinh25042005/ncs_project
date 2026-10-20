@@ -358,6 +358,27 @@ Hạ tầng mạng và máy chủ được mã hóa toàn bộ dưới dạng Co
 
 ---
 
+### 3.8. Chuẩn Hóa Hạ Tầng & Gia Cố An Toàn Hệ Thống (AWS & K8s Hardening)
+
+Nhằm đáp ứng các tiêu chuẩn khắt khe về bảo mật doanh nghiệp (AWS Well-Architected & CIS Kubernetes Benchmarks), hệ thống đã tiến hành chuỗi biện pháp gia cố toàn diện:
+
+1. **Chuẩn hóa cấu hình Terraform**:
+   - Loại bỏ hoàn toàn các biến tàn dư K3s (`k3s_*`) và cluster token cứng, chuyển giao 100% về Upstream Kubernetes chuẩn (`k8s_*`).
+   - Sử dụng các khối `moved {}` trong Terraform để bảo toàn trạng thái EC2 instances và Security Groups, tránh xóa và tạo lại hạ tầng đang hoạt động.
+   - Phân tách cấu hình `versions.tf` độc lập theo HashiCorp Style Guide và bổ sung `validation {}` cho CIDR blocks.
+
+2. **Gia cố bảo mật máy chủ ảo AWS EC2**:
+   - **Enforce IMDSv2**: Cấu hình `http_tokens = "required"` và `http_put_response_hop_limit = 1` trên toàn bộ các máy chủ ảo EC2. Biện pháp này triệt tiêu hoàn toàn nguy cơ bị khai thác SSRF (Server-Side Request Forgery) để đánh cắp IAM credentials qua metadata service.
+   - **EBS Encryption**: Bật mã hóa KMS `encrypted = true` trên toàn bộ root volumes của các máy chủ.
+
+3. **Gia cố tầng ứng dụng Kubernetes (Kubernetes Hardening)**:
+   - **PodDisruptionBudget (`k8s/06-pdb.yaml`)**: Áp dụng cho các dịch vụ trọng yếu (`frontend`, `cartservice`, `checkoutservice`) với chính sách `minAvailable: 1`, đảm bảo luôn có ít nhất 1 bản sao hoạt động liên tục khi thực hiện bảo trì node hoặc nâng cấp cụm.
+   - **ResourceQuota & LimitRange (`k8s/07-resource-quota.yaml`)**: Thiết lập hạn ngạch tài nguyên nghiêm ngặt cho namespace `online-boutique` (Requests: 4 CPU / 6Gi RAM, Limits: 8 CPU / 12Gi RAM, tối đa 30 Pods) nhằm ngăn chặn hiện tượng Noisy Neighbors và tấn công cạn kiệt tài nguyên node (DoS).
+   - **Pod Anti-Affinity**: Thiết lập quy tắc `podAntiAffinity` (preferred) cho Deployment của `frontend`, yêu cầu bộ điều phối tự động rải đều các Pods sang các Worker Node vật lý khác nhau nhằm tăng tính sẵn sàng cao.
+   - **Zero-Trust Egress NetworkPolicy**: Bổ sung chính sách Egress kiểm soát chiều ra cho `paymentservice`. Pod này chỉ được phép phân giải DNS (`kube-dns:53`), chặn đứng hoàn toàn khả năng dò quét nội bộ hoặc đánh cắp dữ liệu thẻ tín dụng ra ngoài Internet nếu dịch vụ bị xâm nhập.
+
+---
+
 ## 4. KẾT QUẢ KIỂM THỬ TÍNH NĂNG HỆ THỐNG
 
 ### 4.1. Kiểm thử 1: Truy cập các giao diện Web Quản trị & Ứng dụng
