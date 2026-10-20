@@ -1,6 +1,6 @@
-# NCS Project: Microservices Security, K3s, pfSense & SIEM/SOAR
+# NCS Project: Microservices Security, Upstream Kubernetes, pfSense & Wazuh SIEM
 
-Hệ thống vận hành kiến trúc Microservices hiện đại trên cụm Kubernetes rút gọn (K3s), được bảo vệ đa tầng bởi tường lửa biên pfSense (Suricata IDS/IPS), cô lập luồng mạng bằng Kubernetes Network Policies (Zero-Trust) và giám sát, ứng phó tự động với Wazuh SIEM & SOAR.
+Hệ thống vận hành kiến trúc Microservices hiện đại trên cụm Kubernetes Upstream v1.31 (Kubeadm), được bảo vệ đa tầng bởi tường lửa biên pfSense / Linux Gateway (Suricata IDS/IPS), cô lập luồng mạng bằng Kubernetes Network Policies (Zero-Trust) và giám sát an ninh tập trung với Wazuh SIEM.
 
 ---
 
@@ -12,16 +12,19 @@ Hệ thống vận hành kiến trúc Microservices hiện đại trên cụm Ku
                                        ▼
                ┌────────────────────────────────────────────────┐
                │         pfSense FIREWALL & IDS/IPS             │
-               │  • WAN IP: 192.168.100.203                     │
+               │  • WAN IP: 10.0.1.8 (Public EIP: 13.228.8.81)  │
                │  • Suricata IDS/IPS: Deep Packet Inspection    │
-               │  • Port Forward 80/443 ──► K8s Ingress         │
+               │  • Port Forward 80 ──► K8s Ingress Controller  │
+               │  • SSH Bastion Host (Port 22 ──► Jump to K8s)  │
                └───────────────────────┬────────────────────────┘
-                                       │ Mạng LAN Nội bộ (192.168.94.0/24)
+                                       │ Mạng LAN Nội bộ (10.0.10.0/24 & 10.0.11.0/24)
                                        ▼
                ┌────────────────────────────────────────────────┐
-               │           KUBERNETES CLUSTER (K3s)             │
-               │  • Nginx Ingress Controller (L7 Routing)       │
-               │  • Workload: Google Online Boutique (11 SVs)   │
+               │         UPSTREAM KUBERNETES CLUSTER            │
+               │  • K8s v1.31.14 (Kubeadm) + containerd v2.2.1  │
+               │  • Nginx Ingress Controller (Baremetal HostNet)│
+               │  • Flannel CNI: VXLAN Overlay (10.244.0.0/16)  │
+               │  • Workload: Google Online Boutique (12 SVs)   │
                │  • Autoscaling: HPA v2 (CPU Target 70-75%)     │
                │  • Zero-Trust: Network Policies (Default Deny) │
                │  • Audit Logging: K8s API Server Audit Log     │
@@ -29,10 +32,11 @@ Hệ thống vận hành kiến trúc Microservices hiện đại trên cụm Ku
                                        │ Logs (Suricata + K8s Audit + Syslog)
                                        ▼
                ┌────────────────────────────────────────────────┐
-               │            WAZUH SIEM & SOAR                   │
-               │  • Phân tích tương quan sự kiện an ninh        │
-               │  • Active Response: Tự động chặn IP trên       │
-               │    pfSense khi phát hiện quét lỗ hổng/tấn công │
+               │                 WAZUH SIEM                     │
+               │  • IP: 10.0.20.10 (Management Subnet)          │
+               │  • Thu thập nhật ký an ninh tập trung          │
+               │  • Phân tích tương quan theo MITRE ATT&CK      │
+               │  • Cảnh báo thời gian thực & SOC Dashboard     │
                └────────────────────────────────────────────────┘
 ```
 
@@ -49,9 +53,23 @@ ncs_project/
 │   ├── 02-ingress.yaml                # Nginx Ingress routing to frontend
 │   ├── 03-hpa.yaml                    # Horizontal Pod Autoscalers (Frontend, Cart, Checkout)
 │   └── 04-network-policies.yaml       # Zero-Trust inter-service network isolation
-├── ansible/                           # Tự động hóa hạ tầng (K3s, Hardening, Wazuh)
+├── ansible/                           # Tự động hóa hạ tầng (Kubeadm, Hardening, Boutique)
 │   ├── playbooks/
+│   │   ├── k8s-cluster.yml            # Bootstrap K8s Master & Workers
+│   │   └── restore-db.yml
 │   └── roles/
+│       ├── common/                    # Sysctl, swapfile, containerd, kubeadm
+│       ├── master/                    # Kubeadm init, Flannel CNI, kubeconfig
+│       ├── worker/                    # Kubeadm join cluster
+│       ├── ingress/                   # Nginx Ingress baremetal controller
+│       └── online_boutique/           # Triển khai Online Boutique manifests
+├── docs/                              # Tài liệu & sơ đồ kiến trúc
+│   ├── architecture_diagram.svg       # Sơ đồ kiến trúc Vector SVG
+│   └── architecture_diagram.png       # Sơ đồ kiến trúc PNG 1920x1350
+├── terraform/                         # Hạ tầng đám mây AWS
+│   ├── main.tf                        # VPC, Subnets, Gateway, EC2 Instances
+│   ├── variables.tf
+│   └── outputs.tf
 └── README.md
 ```
 
@@ -59,7 +77,7 @@ ncs_project/
 
 ## 3. Các Microservices trong Google Online Boutique
 
-Hệ thống bao gồm 11 vi dịch vụ độc lập:
+Hệ thống bao gồm 11 vi dịch vụ độc lập cùng bộ sinh tải:
 * **frontend**: Giao diện web người dùng (Go/HTML).
 * **cartservice**: Quản lý giỏ hàng (C# / .NET).
 * **redis-cart**: Cơ sở dữ liệu cache lưu giỏ hàng (Redis).
@@ -71,6 +89,7 @@ Hệ thống bao gồm 11 vi dịch vụ độc lập:
 * **checkoutservice**: Điều phối quy trình đặt hàng (Go).
 * **recommendationservice**: Gợi ý sản phẩm liên quan (Python).
 * **adservice**: Phân phối banner quảng cáo (Java).
+* **loadgenerator**: Mô phỏng lượng người dùng truy cập và mua hàng liên tục.
 
 ---
 
@@ -88,46 +107,23 @@ Toàn bộ namespace `online-boutique` áp dụng nguyên tắc **Default Deny**
 
 ## 5. Hướng dẫn Triển khai nhanh
 
-### Bước 1: Khởi tạo S3 Remote State & DynamoDB Locking (Chống xung đột 2 người apply cùng lúc)
-Trước khi chạy dự án chính, khởi tạo bucket S3 và bảng DynamoDB quản lý Lock:
-```bash
-cd terraform/bootstrap/
-terraform init
-terraform apply
-```
-*Lấy tên `s3_bucket_name` và `dynamodb_table_name` được xuất ra để điền vào block `backend "s3"` trong `terraform/main.tf`.*
-
-### Bước 2: Quản lý biến `.tfvars` trên S3 & Triển khai hạ tầng chính
-Để cả nhóm dùng chung biến mà không cần commit mật khẩu lên Git:
+### Bước 1: Triển khai hạ tầng qua Terraform
 ```bash
 cd terraform/
-
-# 1. Đẩy file biến lên S3 (chỉ làm 1 lần hoặc khi có thay đổi)
-./tf-s3.sh push-vars
-
-# 2. Khởi tạo backend S3
 terraform init
-
-# 3. Chạy apply trực tiếp nạp biến từ S3 (có cơ chế Lock qua DynamoDB)
-./tf-s3.sh apply
+terraform apply -auto-approve
 ```
-*Khi có người đang `apply`, người thứ 2 cố tình chạy sẽ bị DynamoDB báo lỗi `Error acquiring the state lock` và chặn lại ngay lập tức.*
 
-*Terraform sẽ tự động tạo:*
-- **VPC** 3 tầng mạng: WAN (Public), K3s (Private), Wazuh (Management).
-- **pfSense / Security Gateway** (Dual-ENI: WAN có Elastic IP, LAN làm Gateway cho K3s).
-- **Cụm K3s (Master + Worker)** trong mạng Private, kích hoạt sẵn K8s API Audit Logging.
-- **Wazuh SIEM Server** thu thập log và bảng điều khiển SOC.
-
----
-
-### Bước 2: Triển khai toàn bộ ứng dụng lên K3s
-Trên máy chủ K3s Master:
+### Bước 2: Cài đặt cụm Kubernetes qua Ansible
 ```bash
-# Triển khai toàn bộ 11 microservices + Ingress + HPA + Network Policies
-kubectl apply -k k8s/
-
-# Kiểm tra trạng thái
-kubectl get pods,svc,ingress,hpa,networkpolicy -n online-boutique
+cd ansible/
+ansible-playbook -i inventory-bastion.ini playbooks/k8s-cluster.yml
 ```
 
+### Bước 3: Kiểm tra trạng thái cụm K8s
+```bash
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/ncs-key.pem ubuntu@13.228.8.81" ubuntu@10.0.10.10
+kubectl get nodes -o wide
+kubectl get pods -n online-boutique
+kubectl get hpa -n online-boutique
+```
