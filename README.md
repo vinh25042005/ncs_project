@@ -54,9 +54,9 @@ ncs_project/
 │   ├── 03-hpa.yaml                    # Horizontal Pod Autoscalers (Frontend, Cart, Checkout)
 │   └── 04-network-policies.yaml       # Zero-Trust inter-service network isolation
 ├── ansible/                           # Tự động hóa hạ tầng (Kubeadm, Hardening, Boutique)
-│   ├── playbooks/
-│   │   ├── k8s-cluster.yml            # Bootstrap K8s Master & Workers
-│   │   └── restore-db.yml
+│   ├── site.yml                       # Playbook chính bootstrap K8s Master & Workers
+│   ├── inventory.ini                  # Inventory chạy qua SSH Bastion (ProxyJump)
+│   ├── inventory-bastion.ini          # Inventory chạy trực tiếp từ pfSense Gateway
 │   └── roles/
 │       ├── common/                    # Sysctl, swapfile, containerd, kubeadm
 │       ├── master/                    # Kubeadm init, Flannel CNI, kubeconfig
@@ -117,7 +117,7 @@ terraform apply -auto-approve
 ### Bước 2: Cài đặt cụm Kubernetes qua Ansible
 ```bash
 cd ansible/
-ansible-playbook -i inventory-bastion.ini playbooks/k8s-cluster.yml
+ansible-playbook -i inventory-bastion.ini site.yml
 ```
 
 ### Bước 3: Kiểm tra trạng thái cụm K8s
