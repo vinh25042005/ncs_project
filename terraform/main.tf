@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
 
   # Cấu hình lưu trữ State tập trung trên S3 + State Locking (chống 2 người apply cùng lúc)

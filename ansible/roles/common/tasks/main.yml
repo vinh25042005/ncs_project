@@ -1,38 +1,26 @@
 ---
-# Role: common — Cài containerd, kubeadm, kubectl, kubelet trên tất cả node
-# ======================================================================
+# Role: common — Cấu hình OS, containerd, swap đệm và cài đặt kubeadm/kubelet/kubectl
+# Áp dụng cho toàn bộ các node trong cụm (Master + Workers)
+# =================================================================================
 
-- name: Kill unattended-upgrades and remove apt locks (avoid race condition on fresh boot)
+- name: Đợi và giải phóng tiến trình apt lock nếu có
   shell: |
     systemctl stop unattended-upgrades 2>/dev/null || true
     killall -9 apt-get 2>/dev/null || true
     killall -9 apt 2>/dev/null || true
-    rm -f /var/lib/apt/lists/lock /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock /var/cache/apt/archives/partial/* 2>/dev/null || true
-    dpkg --configure -a 2>/dev/null || true
+    rm -f /var/lib/apt/lists/lock /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock
+    dpkg --configure -a
   changed_when: false
   ignore_errors: true
 
-- name: Replace apt mirror with global archive (avoid 503 from regional mirrors)
-  shell: |
-    sed -i 's|http://[^.]*\.ec2\.archive\.ubuntu\.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
-    apt-get update -qq
-  changed_when: false
-
-- name: Disable swap
-  shell: |
-    swapoff -a
-    sed -i '/swap/d' /etc/fstab
-  changed_when: false
-
-- name: Load kernel modules for containerd
+- name: Nạp kernel modules cho Kubernetes và containerd
   copy:
-    dest: /etc/modules-load.d/containerd.conf
+    dest: /etc/modules-load.d/k8s.conf
     content: |
       overlay
       br_netfilter
-  notify: restart containerd
 
-- name: Load kernel modules
+- name: Kích hoạt kernel modules
   modprobe:
     name: "{{ item }}"
     state: present
@@ -40,81 +28,93 @@
     - overlay
     - br_netfilter
 
-- name: Set sysctl for Kubernetes networking
+- name: Cấu hình sysctl cho mạng Kubernetes
   copy:
-    dest: /etc/sysctl.d/99-kubernetes-cri.conf
+    dest: /etc/sysctl.d/99-kubernetes.conf
     content: |
       net.bridge.bridge-nf-call-iptables = 1
-      net.ipv4.ip_forward = 1
       net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
 
-- name: Apply sysctl
-  shell: sysctl --system
+- name: Áp dụng sysctl
+  command: sysctl --system
   changed_when: false
 
-- name: Install containerd
-  apt:
-    name: containerd
-    state: present
-    update_cache: yes
-
-- name: Configure containerd (SystemdCgroup)
+- name: Cấu hình 2GB Swapfile làm bộ nhớ đệm an toàn
   shell: |
-    mkdir -p /etc/containerd
-    containerd config default > /etc/containerd/config.toml
-    sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-  args:
-    creates: /etc/containerd/config.toml
-  notify: restart containerd
+    if [ ! -f /swapfile ]; then
+      fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    fi
+  changed_when: false
 
-- name: Ensure containerd is running
-  systemd:
-    name: containerd
-    state: started
-    enabled: yes
-
-- name: Install apt-transport-https, ca-certificates, curl, gpg
+- name: Cài đặt các gói phụ trợ cơ bản
   apt:
     name:
       - apt-transport-https
       - ca-certificates
       - curl
-      - gpg
+      - gnupg
+      - lsb-release
+      - jq
+    state: present
+    update_cache: yes
+
+- name: Cài đặt Containerd
+  apt:
+    name: containerd
     state: present
 
-- name: Add Kubernetes apt key
+- name: Cấu hình containerd với SystemdCgroup = true
   shell: |
-    curl -fsSL "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key" | \
-      gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  args:
-    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    mkdir -p /etc/containerd
+    containerd config default > /etc/containerd/config.toml
+    sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+    systemctl restart containerd
+    systemctl enable containerd
+  changed_when: true
 
-- name: Add Kubernetes apt repository
+- name: Tạo thư mục chứa keyring Kubernetes
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Tải GPG Key của kho Kubernetes v{{ k8s_version }}
+  shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
+  changed_when: false
+
+- name: Thêm kho apt chính thức của Kubernetes
   copy:
     dest: /etc/apt/sources.list.d/kubernetes.list
-    content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /"
+    content: |
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /
 
-- name: Install kubeadm, kubectl, kubelet, awscli, jq
+- name: Cập nhật apt cache và cài đặt kubelet, kubeadm, kubectl
   apt:
     name:
       - kubelet
       - kubeadm
       - kubectl
-      - awscli
-      - jq
     state: present
     update_cache: yes
 
-- name: Hold kubeadm, kubectl, kubelet
+- name: Khóa phiên bản kubelet, kubeadm, kubectl (tránh tự động update)
   dpkg_selections:
     name: "{{ item }}"
     selection: hold
   loop:
+    - kubelet
     - kubeadm
     - kubectl
-    - kubelet
 
-- name: Enable kubelet
-  systemd:
-    name: kubelet
-    enabled: yes
+- name: Cấu hình Kubelet cho phép Swap (failSwapOn: false)
+  copy:
+    dest: /etc/default/kubelet
+    content: |
+      KUBELET_EXTRA_ARGS="--fail-swap-on=false"
+  notify: restart kubelet

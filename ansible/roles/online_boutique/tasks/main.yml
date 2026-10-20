@@ -1,0 +1,27 @@
+---
+# Role: online_boutique — Triển khai Google Online Boutique và Network Policies lên cụm
+# ======================================================================================
+
+- name: Tạo thư mục chứa manifests trên Master node
+  file:
+    path: /opt/k8s
+    state: directory
+    mode: '0755'
+
+- name: Sao chép toàn bộ thư mục k8s lên Master node
+  copy:
+    src: "{{ playbook_dir }}/../k8s/"
+    dest: /opt/k8s/
+    mode: '0644'
+
+- name: Áp dụng toàn bộ Kubernetes manifests bằng Kustomize
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -k /opt/k8s/
+  changed_when: true
+
+- name: Đợi các Deployments của Online Boutique khởi chạy thành công
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl wait --namespace online-boutique \
+      --for=condition=available deployment --all \
+      --timeout=300s
+  changed_when: false

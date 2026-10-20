@@ -1,74 +1,28 @@
 ---
-# Role: worker — Join K8s cluster (control-plane hoặc worker)
-# Biến node_type quyết định cách join:
-#   node_type = "master"   → join --control-plane (cho node-2, node-3)
-#   node_type = "ingress"  → join worker + label role=ingress
+# Role: worker — Tham gia Worker node vào cụm Kubernetes (kubeadm join)
 # ====================================================================
 
-- name: Get AWS region
-  shell: curl -s http://169.254.169.254/latest/meta-data/placement/region
-  register: aws_region
-  changed_when: false
+- name: Kiểm tra xem Worker node đã tham gia cụm chưa
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
 
-- name: Wait for join command from SSM
-  shell: |
-    for i in $(seq 1 30); do
-      {% if node_type == 'master' %}
-      CMD=$(aws ssm get-parameter --name "/k8s/join-command" \
-        --query Parameter.Value --output text --region {{ aws_region.stdout }} 2>/dev/null)
-      {% else %}
-      CMD=$(aws ssm get-parameter --name "/k8s/worker-join-command" \
-        --query Parameter.Value --output text --region {{ aws_region.stdout }} 2>/dev/null)
-      {% endif %}
-      if [ -n "$CMD" ] && [ "$CMD" != "None" ]; then
-        echo "$CMD"
-        exit 0
-      fi
-      sleep 10
-    done
-    echo "TIMEOUT"
-    exit 1
-  register: join_cmd
-  changed_when: false
+- name: Thực thi lệnh join vào cụm Kubernetes
+  shell: "{{ hostvars[groups['master'][0]]['k8s_join_command'] }}"
+  when: not kubelet_conf.stat.exists
 
-- name: Join cluster
-  shell: |
-    {% if node_type == 'master' %}
-    {{ join_cmd.stdout }}
-    {% else %}
-    {{ join_cmd.stdout }}
-    {% endif %}
-  args:
-    creates: /etc/kubernetes/kubelet.conf
-  register: join_result
-  changed_when: "'This node has joined the cluster' in join_result.stdout"
+- name: Đảm bảo kubelet được kích hoạt và khởi chạy
+  systemd:
+    name: kubelet
+    state: started
+    enabled: yes
 
-- name: Untaint self (control-plane nodes mới join vẫn bị taint)
+- name: Đợi Master xác nhận Worker node chuyển sang trạng thái Ready
   shell: |
-    NODE_NAME=$(kubectl get nodes -o json | \
-      jq -r '.items[] | select(.status.addresses[] | select(.type=="InternalIP" and .address=="{{ hostvars[inventory_hostname].ansible_default_ipv4.address }}")) | .metadata.name')
-    kubectl taint node $NODE_NAME node-role.kubernetes.io/control-plane:NoSchedule- 2>/dev/null || true
-  when: node_type == 'master'
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes | grep "{{ inventory_hostname }}" | grep -w "Ready"
   delegate_to: "{{ groups['master'][0] }}"
+  register: worker_ready
+  until: worker_ready.rc == 0
+  retries: 30
+  delay: 5
   changed_when: false
-
-- name: Label ingress node
-  shell: |
-    NODE_NAME=$(kubectl get nodes -o json | \
-      jq -r '.items[] | select(.status.addresses[] | select(.type=="InternalIP" and .address=="{{ hostvars[inventory_hostname].ansible_default_ipv4.address }}")) | .metadata.name')
-    kubectl label node $NODE_NAME role=ingress --overwrite
-  when: node_type == 'ingress'
-  delegate_to: "{{ groups['master'][0] }}"
-  changed_when: false
-
-- name: Setup kubeconfig (for control-plane nodes)
-  shell: |
-    mkdir -p $HOME/.kube
-    cp /etc/kubernetes/admin.conf $HOME/.kube/config
-    chown $(id -u):$(id -g) $HOME/.kube/config
-  when: node_type == 'master'
-  changed_when: false
-
-- name: Announce join result
-  debug:
-    msg: ">>> [{{ node_type | upper }}] Joined cluster successfully!"

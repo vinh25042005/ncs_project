@@ -125,10 +125,10 @@ resource "aws_instance" "pfsense" {
               iptables -t nat -A POSTROUTING -o "$LAN_DEV" -d 10.0.10.10 -p tcp --dport 80 -j MASQUERADE
               iptables -t nat -A POSTROUTING -o "$LAN_DEV" -d 10.0.10.10 -p tcp --dport 443 -j MASQUERADE
 
-              # Cài đặt Suricata IDS & lưu cấu hình iptables
+              # Cài đặt Suricata IDS & Ansible Controller & lưu cấu hình iptables
               export DEBIAN_FRONTEND=noninteractive
               apt-get update -y
-              apt-get install -y iptables-persistent suricata
+              apt-get install -y iptables-persistent suricata ansible
               netfilter-persistent save
               systemctl enable suricata
               EOF
@@ -172,82 +172,14 @@ resource "aws_instance" "k3s_master" {
                 sleep 3
               done
 
-              # Thư mục lưu audit logs
-              mkdir -p /var/log/kubernetes /etc/rancher/k3s
-
-              # Cấu hình K8s Audit Policy cho Wazuh thu thập
-              cat << 'POLICY' > /etc/rancher/k3s/audit-policy.yaml
-              apiVersion: audit.k8s.io/v1
-              kind: Policy
-              rules:
-                - level: Metadata
-                  resources:
-                    - group: ""
-                      resources: ["secrets", "configmaps"]
-                - level: RequestResponse
-                  resources:
-                    - group: ""
-                      resources: ["pods", "pods/exec"]
-                - level: Metadata
-              POLICY
-
-              # Cài K3s với Audit Logging kích hoạt và Cluster Token
-              curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
-                --token=${var.k3s_cluster_token} \
-                --disable traefik \
-                --kube-apiserver-arg=audit-log-path=/var/log/kubernetes/audit.log \
-                --kube-apiserver-arg=audit-policy-file=/etc/rancher/k3s/audit-policy.yaml \
-                --kube-apiserver-arg=audit-log-maxsize=100 \
-                --kube-apiserver-arg=audit-log-maxbackup=3" sh -
-
-              # Cấp quyền đọc k3s.yaml
-              sleep 10
-              chmod 644 /etc/rancher/k3s/k3s.yaml
-              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-
-              # Đợi K3s server sẵn sàng
-              until /usr/local/bin/kubectl get nodes; do
-                sleep 3
-              done
-
-              # Cài đặt Ingress-Nginx Controller (LoadBalancer qua ServiceLB k3s)
-              /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml || true
-
-              # Đợi Ingress Nginx Controller sẵn sàng trước khi apply manifests
-              /usr/local/bin/kubectl wait --namespace ingress-nginx \
-                --for=condition=ready pod \
-                --selector=app.kubernetes.io/component=controller \
-                --timeout=180s || sleep 20
-              /usr/local/bin/kubectl annotate ingressclass nginx ingressclass.kubernetes.io/is-default-class="true" --overwrite || true
-
-              # Clone repo và áp dụng toàn bộ manifests Online Boutique + Network Policies
-              apt-get update -y && apt-get install -y git
-              git clone https://github.com/vinh25042005/ncs_project.git /tmp/ncs_project || true
-              if [ -d "/tmp/ncs_project/k8s" ]; then
-                sed -i 's/type: LoadBalancer/type: ClusterIP/g' /tmp/ncs_project/k8s/01-online-boutique.yaml
-                /usr/local/bin/kubectl apply -k /tmp/ncs_project/k8s/ || true
+              # Tạo 2GB swap file để làm đệm an toàn cho cụm K8s
+              if [ ! -f /swapfile ]; then
+                fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+                chmod 600 /swapfile
+                mkswap /swapfile
+                swapon /swapfile
+                echo '/swapfile none swap sw 0 0' >> /etc/fstab
               fi
-
-              # Cài đặt Helm & Cert-Manager để chạy Rancher Dashboard trên K3s
-              curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash || true
-              /usr/local/bin/kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml || true
-              /usr/local/bin/kubectl wait --for=condition=available --timeout=120s -n cert-manager deployment/cert-manager-webhook || sleep 15
-              sleep 30
-
-              # Cài đặt Rancher Server trên K3s với retry loop
-              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-              echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> /etc/environment
-              helm repo add rancher-stable https://releases.rancher.com/server-charts/stable || true
-              helm repo update || true
-              for i in 1 2 3 4 5; do
-                helm install rancher rancher-stable/rancher \
-                  --namespace cattle-system \
-                  --create-namespace \
-                  --set hostname=rancher.lab \
-                  --set bootstrapPassword=AdminPassword123! \
-                  --set replicas=1 \
-                  --set ingress.ingressClassName=nginx && break || sleep 15
-              done
               EOF
 
   tags = {
@@ -279,14 +211,20 @@ resource "aws_instance" "k3s_worker" {
               echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/99-security.conf
               sysctl --system
 
-              # Đợi K3s Master khởi động xong cổng 6443
-              until curl -sk https://${aws_instance.k3s_master.private_ip}:6443/ping >/dev/null 2>&1; do
-                echo "Đang đợi K3s Master sẵn sàng..."
-                sleep 5
+              # Đợi pfSense Gateway sẵn sàng trước khi kết nối Internet
+              until ping -c 1 -W 2 ${var.pfsense_lan_ip} >/dev/null 2>&1; do
+                echo "Đang đợi Gateway ${var.pfsense_lan_ip}..."
+                sleep 3
               done
 
-              # Cài đặt K3s Agent và tự động kết nối vào Master
-              curl -sfL https://get.k3s.io | K3S_URL="https://${aws_instance.k3s_master.private_ip}:6443" K3S_TOKEN="${var.k3s_cluster_token}" sh -
+              # Tạo 2GB swap file để làm đệm an toàn cho node worker 2GB RAM
+              if [ ! -f /swapfile ]; then
+                fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+                chmod 600 /swapfile
+                mkswap /swapfile
+                swapon /swapfile
+                echo '/swapfile none swap sw 0 0' >> /etc/fstab
+              fi
               EOF
 
   tags = {

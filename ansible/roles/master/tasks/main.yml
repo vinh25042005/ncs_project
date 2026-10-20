@@ -1,109 +1,89 @@
 ---
-# Role: master — Khởi tạo cluster với kubeadm init + Calico + upload SSM
-# ====================================================================
+# Role: master — Khởi tạo cụm Kubernetes Gốc (kubeadm init) + Flannel CNI
+# ======================================================================
 
-- name: Get private IP
-  shell: hostname -I | awk '{print $1}'
-  register: my_ip
+- name: Kiểm tra xem cụm đã được khởi tạo trước đó chưa
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadmin_conf
+
+- name: Tạo cấu hình kubeadm-config.yaml
+  copy:
+    dest: /etc/kubernetes/kubeadm-config.yaml
+    content: |
+      apiVersion: kubeadm.k8s.io/v1beta3
+      kind: InitConfiguration
+      localAPIEndpoint:
+        advertiseAddress: "{{ master_ip }}"
+        bindPort: 6443
+      nodeRegistration:
+        criSocket: "unix:///var/run/containerd/containerd.sock"
+        kubeletExtraArgs:
+          fail-swap-on: "false"
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta3
+      kind: ClusterConfiguration
+      networking:
+        podSubnet: "{{ pod_network_cidr }}"
+      apiServer:
+        extraArgs:
+          audit-log-path: "/var/log/kubernetes/audit.log"
+          audit-policy-file: "/etc/kubernetes/audit-policy.yaml"
+      ---
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      failSwapOn: false
+  when: not kubeadmin_conf.stat.exists
+
+- name: Tạo file audit-policy.yaml cho K8s API Server (phục vụ Wazuh SIEM)
+  copy:
+    dest: /etc/kubernetes/audit-policy.yaml
+    content: |
+      apiVersion: audit.k8s.io/v1
+      kind: Policy
+      rules:
+        - level: Metadata
+          resources:
+            - group: ""
+              resources: ["secrets", "configmaps"]
+        - level: RequestResponse
+          resources:
+            - group: ""
+              resources: ["pods", "pods/exec"]
+        - level: Metadata
+
+- name: Khởi tạo Kubernetes Control-Plane với kubeadm
+  shell: |
+    kubeadm init --config /etc/kubernetes/kubeadm-config.yaml --ignore-preflight-errors=all
+  when: not kubeadmin_conf.stat.exists
+
+- name: Cấu hình thư mục .kube cho user ubuntu và root
+  shell: |
+    mkdir -p /home/ubuntu/.kube /root/.kube
+    cp -f /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+    cp -f /etc/kubernetes/admin.conf /root/.kube/config
+    chown -R ubuntu:ubuntu /home/ubuntu/.kube
   changed_when: false
 
-- name: Get public IP (retry, may not be available immediately)
-  shell: curl -s http://169.254.169.254/latest/meta-data/public-ipv4
-  register: public_ip_raw
+- name: Cài đặt Flannel CNI (Mạng Pod nhẹ cho cụm)
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f {{ flannel_manifest_url }}
   changed_when: false
-  retries: 30
-  delay: 2
-  until: public_ip_raw.stdout != ""
 
-- name: Set IP facts
+- name: Đợi Control-Plane Node sẵn sàng (Ready)
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes | grep 'Ready'
+  register: node_ready
+  until: node_ready.rc == 0
+  retries: 25
+  delay: 5
+  changed_when: false
+
+- name: Tạo lệnh join token mới cho Worker nodes
+  command: kubeadm token create --print-join-command
+  register: join_cmd_raw
+  changed_when: false
+
+- name: Lưu lệnh join vào hostvars cho các Worker nodes sử dụng
   set_fact:
-    master_private_ip: "{{ my_ip.stdout }}"
-    master_public_ip: "{{ public_ip_raw.stdout }}"
-
-- name: Get AWS region
-  shell: curl -s http://169.254.169.254/latest/meta-data/placement/region
-  register: aws_region
-  changed_when: false
-
-- name: Delete old SSM parameters (avoid stale data)
-  shell: |
-    aws ssm delete-parameter --name "/k8s/join-command" --region {{ aws_region.stdout }} 2>/dev/null || true
-    aws ssm delete-parameter --name "/k8s/worker-join-command" --region {{ aws_region.stdout }} 2>/dev/null || true
-    aws ssm delete-parameter --name "/k8s/kubeconfig" --region {{ aws_region.stdout }} 2>/dev/null || true
-  changed_when: false
-
-- name: Run kubeadm init
-  shell: |
-    kubeadm init \
-      --control-plane-endpoint={{ k8s_lb_endpoint | default(master_private_ip) }}:6443 \
-      --apiserver-advertise-address={{ master_private_ip }} \
-      --apiserver-cert-extra-sans={{ master_public_ip }},{{ k8s_lb_endpoint | default(master_private_ip) }} \
-      --pod-network-cidr={{ pod_cidr | default('10.244.0.0/16') }} \
-      --upload-certs \
-      --kubernetes-version=v{{ k8s_version }}.0 2>&1 | tee /tmp/kubeadm-init.log
-  args:
-    creates: /etc/kubernetes/admin.conf
-
-- name: Setup kubeconfig for ubuntu user
-  shell: |
-    mkdir -p $HOME/.kube
-    cp /etc/kubernetes/admin.conf $HOME/.kube/config
-    chown $(id -u):$(id -g) $HOME/.kube/config
-  changed_when: false
-
-- name: Patch kubeconfig with public IP (for remote access)
-  shell: |
-    sed -i "s/{{ master_private_ip }}/{{ master_public_ip }}/g" $HOME/.kube/config
-  changed_when: false
-
-- name: Install Calico CNI
-  shell: |
-    kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
-  register: calico_result
-  changed_when: "'created' in calico_result.stdout"
-
-- name: Untaint master nodes (allow workload scheduling)
-  shell: |
-    kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null || true
-  changed_when: false
-
-- name: Wait for Calico to be ready
-  shell: |
-    kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n kube-system --timeout=120s
-  changed_when: false
-
-- name: Create join command for control-plane
-  shell: |
-    JOIN_CMD=$(kubeadm token create --print-join-command)
-    CERT_KEY=$(kubeadm init phase upload-certs --upload-certs 2>/dev/null | tail -1)
-    echo "$JOIN_CMD --control-plane --certificate-key $CERT_KEY"
-  register: cp_join_cmd
-  changed_when: false
-
-- name: Create join command for workers
-  shell: kubeadm token create --print-join-command
-  register: worker_join_cmd
-  changed_when: false
-
-- name: Upload join commands to SSM Parameter Store
-  shell: |
-    aws ssm put-parameter --name "/k8s/join-command" \
-      --value "{{ cp_join_cmd.stdout }}" \
-      --type String --overwrite --region {{ aws_region.stdout }}
-    aws ssm put-parameter --name "/k8s/worker-join-command" \
-      --value "{{ worker_join_cmd.stdout }}" \
-      --type String --overwrite --region {{ aws_region.stdout }}
-  changed_when: false
-
-- name: Upload kubeconfig to SSM (gzip+base64, Advanced tier)
-  shell: |
-    KUBECONFIG_B64=$(cat $HOME/.kube/config | gzip | base64 -w0)
-    aws ssm put-parameter --name "/k8s/kubeconfig" --value "$KUBECONFIG_B64" \
-      --tier Advanced --type String --overwrite --region {{ aws_region.stdout }}
-  changed_when: false
-
-# ── EBS CSI + StorageClass + Ingress: Đã chuyển vào Helm chart (dependencies) ──
-
-- name: Announce completion
-  debug:
-    msg: ">>> [MASTER] Cluster initialized! API: https://{{ master_public_ip }}:6443"
+    k8s_join_command: "{{ join_cmd_raw.stdout }} --ignore-preflight-errors=all"

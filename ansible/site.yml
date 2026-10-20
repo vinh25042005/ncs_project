@@ -1,0 +1,39 @@
+---
+# Playbook: site.yml — Triển khai cụm Kubernetes Gốc (v1.31) và Microservices
+# NCS Project: Multi-AZ Kubeadm Cluster with pfSense & Online Boutique
+# ======================================================================
+
+# Bước 1: Chuẩn bị OS, containerd, swap đệm và cài kubeadm/kubelet/kubectl trên mọi node
+- name: Giai đoạn 1 - Cấu hình nền tảng trên toàn bộ các node (Common Prerequisites)
+  hosts: k8s_cluster
+  become: yes
+  roles:
+    - common
+
+# Bước 2: Khởi tạo Control-Plane Master node và cài Flannel CNI
+- name: Giai đoạn 2 - Khởi tạo Kubernetes Control-Plane (kubeadm init)
+  hosts: master
+  become: yes
+  roles:
+    - master
+
+# Bước 3: Tham gia các Worker node vào cụm (Multi-AZ)
+- name: Giai đoạn 3 - Kết nối Worker nodes vào cụm (kubeadm join)
+  hosts: workers
+  become: yes
+  roles:
+    - worker
+
+# Bước 4: Cài đặt Ingress-NGINX Bare-metal HostNetwork trên Master
+- name: Giai đoạn 4 - Triển khai Ingress-NGINX Controller
+  hosts: master
+  become: yes
+  roles:
+    - ingress
+
+# Bước 5: Triển khai 12 microservices của Google Online Boutique từ thư mục k8s/
+- name: Giai đoạn 5 - Triển khai Google Online Boutique và Network Policies
+  hosts: master
+  become: yes
+  roles:
+    - online_boutique
