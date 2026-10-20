@@ -81,3 +81,9 @@ k8s/secret-tls.yaml
 # Terraform lock files (regenerated per env)
 **/.terraform.lock.hcl
 
+# Local Credentials & Secrets (Never commit to Git)
+credentials.local.*
+*credentials*
+*passwords*
+
+

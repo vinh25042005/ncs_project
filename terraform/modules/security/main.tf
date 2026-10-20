@@ -42,9 +42,17 @@ resource "aws_security_group" "pfsense" {
   }
 
   ingress {
-    description = "pfSense WebGUI"
+    description = "pfSense WebGUI / Wazuh SIEM"
     from_port   = 8443
     to_port     = 8443
+    protocol    = "tcp"
+    cidr_blocks = [var.admin_cidr]
+  }
+
+  ingress {
+    description = "Rancher Management Server WebGUI"
+    from_port   = 7443
+    to_port     = 7443
     protocol    = "tcp"
     cidr_blocks = [var.admin_cidr]
   }
