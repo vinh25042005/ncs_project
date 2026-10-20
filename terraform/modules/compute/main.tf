@@ -1,5 +1,8 @@
+# ==============================================================================
 # Module: Compute
-# Provisioning: pfSense Firewall (Dual ENI), K3s Server, K3s Worker, Wazuh SIEM
+# Provisioning: pfSense Gateway (Dual ENI), Upstream K8s Master & Workers, Wazuh
+# Security Hardening: IMDSv2 Enforced, KMS EBS Encryption, Multi-AZ Subnets
+# ==============================================================================
 
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -35,7 +38,7 @@ resource "aws_eip" "pfsense" {
   }
 }
 
-# LAN Interface (Private Subnet - Gateway cho cụm K3s)
+# LAN Interface (Private Subnet - Gateway cho cụm K8s)
 resource "aws_network_interface" "pfsense_lan" {
   subnet_id         = var.private_k8s_subnet_id
   private_ips       = [var.pfsense_lan_ip]
@@ -47,7 +50,7 @@ resource "aws_network_interface" "pfsense_lan" {
   }
 }
 
-# EC2 Security Gateway (Cài đặt pfSense hoặc Ubuntu Security Gateway + Suricata)
+# EC2 Security Gateway (Ubuntu Security Gateway + Suricata IDS)
 resource "aws_instance" "pfsense" {
   ami           = var.pfsense_ami_id != "" ? var.pfsense_ami_id : data.aws_ami.ubuntu.id
   instance_type = var.pfsense_instance_type
@@ -61,6 +64,20 @@ resource "aws_instance" "pfsense" {
   network_interface {
     network_interface_id = aws_network_interface.pfsense_lan.id
     device_index         = 1
+  }
+
+  root_block_device {
+    volume_size           = 20
+    volume_type           = "gp3"
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required" # IMDSv2 Enforced
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "enabled"
   }
 
   user_data = <<-EOF
@@ -110,18 +127,18 @@ resource "aws_instance" "pfsense" {
               NETPLAN
               chmod 600 /etc/netplan/60-dual-eni.yaml
 
-              # 1. NAT Masquerade ra ngoài Internet cho mạng Private K3s
+              # 1. NAT Masquerade ra ngoài Internet cho mạng Private K8s
               iptables -t nat -A POSTROUTING -o "$WAN_DEV" -j MASQUERADE
               iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
               iptables -A FORWARD -i "$LAN_DEV" -o "$WAN_DEV" -j ACCEPT
 
-              # 2. Port Forwarding HTTP (80) & HTTPS (443) từ WAN tới K3s Master (10.0.10.10)
+              # 2. Port Forwarding HTTP (80) & HTTPS (443) tới K8s Ingress (10.0.10.10)
               iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 80 -j DNAT --to-destination 10.0.10.10:80
               iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 443 -j DNAT --to-destination 10.0.10.10:443
               iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 80 -j ACCEPT
               iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 443 -j ACCEPT
 
-              # 3. Masquerade trên LAN để đảm bảo traffic phản hồi quay về đúng pfSense
+              # 3. Masquerade trên LAN để đảm bảo traffic phản hồi quay về đúng Gateway
               iptables -t nat -A POSTROUTING -o "$LAN_DEV" -d 10.0.10.10 -p tcp --dport 80 -j MASQUERADE
               iptables -t nat -A POSTROUTING -o "$LAN_DEV" -d 10.0.10.10 -p tcp --dport 443 -j MASQUERADE
 
@@ -140,21 +157,40 @@ resource "aws_instance" "pfsense" {
 }
 
 # ─────────────────────────────────────────────────────────────
-# 2. K3s Cluster (Master & Worker Nodes - Nằm trong Private Subnet)
+# 2. Upstream Kubernetes Cluster (Master & Multi-AZ Worker Nodes)
 # ─────────────────────────────────────────────────────────────
 
-# K3s Master Node (Control Plane + Ingress + HPA)
-resource "aws_instance" "k3s_master" {
+moved {
+  from = aws_instance.k3s_master
+  to   = aws_instance.k8s_master
+}
+
+moved {
+  from = aws_instance.k3s_worker
+  to   = aws_instance.k8s_worker
+}
+
+# Kubernetes Master Node (Control Plane + Ingress + HPA)
+resource "aws_instance" "k8s_master" {
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.k3s_master_instance_type
+  instance_type          = var.k8s_master_instance_type
   key_name               = var.key_name
   subnet_id              = var.private_k8s_subnet_id
-  vpc_security_group_ids = [var.k3s_sg_id]
+  vpc_security_group_ids = [var.k8s_sg_id]
   private_ip             = "10.0.10.10"
 
   root_block_device {
-    volume_size = 20
-    volume_type = "gp3"
+    volume_size           = 20
+    volume_type           = "gp3"
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required" # IMDSv2 Enforced
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "enabled"
   }
 
   user_data = <<-EOF
@@ -172,9 +208,9 @@ resource "aws_instance" "k3s_master" {
                 sleep 3
               done
 
-              # Tạo 2GB swap file để làm đệm an toàn cho cụm K8s
+              # Tạo 4GB swap file để làm đệm an toàn cho cụm K8s & Rancher
               if [ ! -f /swapfile ]; then
-                fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+                fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
                 chmod 600 /swapfile
                 mkswap /swapfile
                 swapon /swapfile
@@ -183,23 +219,32 @@ resource "aws_instance" "k3s_master" {
               EOF
 
   tags = {
-    Name = "${var.project_name}-k3s-master"
-    Role = "k3s-control-plane"
+    Name = "${var.project_name}-k8s-master"
+    Role = "k8s-control-plane"
   }
 }
 
-# K3s Worker Node (Tự động kết nối vào Master - Phân bổ qua 2 AZ: AZ-a & AZ-b)
-resource "aws_instance" "k3s_worker" {
+# Kubernetes Worker Node (Phân bổ qua 2 AZ: AZ-a & AZ-b)
+resource "aws_instance" "k8s_worker" {
   count                  = var.worker_count
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.k3s_worker_instance_type
+  instance_type          = var.k8s_worker_instance_type
   key_name               = var.key_name
   subnet_id              = count.index % 2 == 0 ? var.private_k8s_subnet_id : (var.private_k8s_subnet_b_id != "" ? var.private_k8s_subnet_b_id : var.private_k8s_subnet_id)
-  vpc_security_group_ids = [var.k3s_sg_id]
+  vpc_security_group_ids = [var.k8s_sg_id]
 
   root_block_device {
-    volume_size = 20
-    volume_type = "gp3"
+    volume_size           = 20
+    volume_type           = "gp3"
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required" # IMDSv2 Enforced
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "enabled"
   }
 
   user_data = <<-EOF
@@ -217,7 +262,7 @@ resource "aws_instance" "k3s_worker" {
                 sleep 3
               done
 
-              # Tạo 2GB swap file để làm đệm an toàn cho node worker 2GB RAM
+              # Tạo 2GB swap file để làm đệm an toàn cho node worker
               if [ ! -f /swapfile ]; then
                 fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
                 chmod 600 /swapfile
@@ -228,13 +273,13 @@ resource "aws_instance" "k3s_worker" {
               EOF
 
   tags = {
-    Name = "${var.project_name}-k3s-worker-${count.index + 1}"
-    Role = "k3s-worker"
+    Name = "${var.project_name}-k8s-worker-${count.index + 1}"
+    Role = "k8s-worker"
   }
 }
 
 # ─────────────────────────────────────────────────────────────
-# 3. Wazuh SIEM Server (Tùy chọn - Mặc định tắt để nhường vCPU cho 2 Worker)
+# 3. Wazuh SIEM Server (Tùy chọn)
 # ─────────────────────────────────────────────────────────────
 
 resource "aws_instance" "wazuh" {
@@ -247,8 +292,17 @@ resource "aws_instance" "wazuh" {
   associate_public_ip_address = true
 
   root_block_device {
-    volume_size = 50
-    volume_type = "gp3"
+    volume_size           = 50
+    volume_type           = "gp3"
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "enabled"
   }
 
   tags = {
@@ -258,7 +312,7 @@ resource "aws_instance" "wazuh" {
 }
 
 # ─────────────────────────────────────────────────────────────
-# 4. Rancher Management Server (Tùy chọn máy ảo riêng nếu có thêm vCPU)
+# 4. Rancher Management Server (Tùy chọn nếu có thêm vCPU)
 # ─────────────────────────────────────────────────────────────
 
 resource "aws_instance" "rancher" {
@@ -271,8 +325,17 @@ resource "aws_instance" "rancher" {
   associate_public_ip_address = true
 
   root_block_device {
-    volume_size = 30
-    volume_type = "gp3"
+    volume_size           = 30
+    volume_type           = "gp3"
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "enabled"
   }
 
   user_data = <<-EOF

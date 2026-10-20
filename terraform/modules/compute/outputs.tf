@@ -4,7 +4,7 @@ output "pfsense_public_ip" {
 }
 
 output "pfsense_lan_ip" {
-  description = "Địa chỉ IP cổng LAN của pfSense trong mạng nội bộ K3s"
+  description = "Địa chỉ IP cổng LAN của pfSense trong mạng nội bộ K8s"
   value       = var.pfsense_lan_ip
 }
 
@@ -13,14 +13,25 @@ output "pfsense_lan_eni_id" {
   value       = aws_network_interface.pfsense_lan.id
 }
 
+output "k8s_master_private_ip" {
+  description = "Địa chỉ IP nội bộ của Kubernetes Master Node"
+  value       = aws_instance.k8s_master.private_ip
+}
+
+output "k8s_worker_private_ips" {
+  description = "Danh sách IP nội bộ của các Kubernetes Worker Nodes"
+  value       = aws_instance.k8s_worker[*].private_ip
+}
+
+# Backward-compatibility aliases
 output "k3s_master_private_ip" {
-  description = "Địa chỉ IP nội bộ của K3s Master Node"
-  value       = aws_instance.k3s_master.private_ip
+  description = "Alias for backward compatibility"
+  value       = aws_instance.k8s_master.private_ip
 }
 
 output "k3s_worker_private_ips" {
-  description = "Danh sách IP nội bộ của các K3s Worker Nodes"
-  value       = aws_instance.k3s_worker[*].private_ip
+  description = "Alias for backward compatibility"
+  value       = aws_instance.k8s_worker[*].private_ip
 }
 
 output "wazuh_public_ip" {

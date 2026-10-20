@@ -94,6 +94,7 @@ spec:
       app: paymentservice
   policyTypes:
     - Ingress
+    - Egress
   ingress:
     - from:
         - podSelector:
@@ -102,6 +103,19 @@ spec:
       ports:
         - protocol: TCP
           port: 50051
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
 ---
 # Product Catalog: nhận traffic từ Frontend và CheckoutService
 apiVersion: networking.k8s.io/v1

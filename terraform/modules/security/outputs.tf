@@ -3,9 +3,9 @@ output "pfsense_sg_id" {
   value       = aws_security_group.pfsense.id
 }
 
-output "k3s_sg_id" {
-  description = "ID của Security Group dành cho các node K3s"
-  value       = aws_security_group.k3s.id
+output "k8s_sg_id" {
+  description = "ID của Security Group dành cho các node Kubernetes Upstream"
+  value       = aws_security_group.k8s.id
 }
 
 output "wazuh_sg_id" {

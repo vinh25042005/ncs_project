@@ -1,33 +1,7 @@
-terraform {
-  required_version = ">= 1.5.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.5"
-    }
-  }
-
-  # Cấu hình lưu trữ State tập trung trên S3 + State Locking (chống 2 người apply cùng lúc)
-  backend "s3" {
-    bucket         = "ncs-project-tfstate-yuzdm6"
-    key            = "prod/terraform.tfstate"
-    region         = "ap-southeast-1"
-    encrypt        = true
-    dynamodb_table = "ncs-project-tflocks"
-    use_lockfile   = true
-  }
-
-}
-
-
-provider "aws" {
-  region  = var.region
-  profile = var.aws_profile
-}
+# ==============================================================================
+# NCS PROJECT: MAIN TERRAFORM ORCHESTRATION
+# Architecture: pfSense Edge Gateway, Upstream Kubernetes v1.31, Wazuh SIEM
+# ==============================================================================
 
 # 1. Module Mạng Multi-AZ (VPC, Subnet WAN, Subnet Private K8s A&B, Subnet Mgmt)
 module "network" {
@@ -41,7 +15,7 @@ module "network" {
   availability_zone_b = var.availability_zone_b
 }
 
-# 2. Module Security Groups (pfSense SG, K3s Private SG, Wazuh SG)
+# 2. Module Security Groups (pfSense SG, K8s Private SG, Wazuh SG, Rancher SG)
 module "security" {
   source       = "./modules/security"
   project_name = var.project_name
@@ -50,7 +24,7 @@ module "security" {
   admin_cidr   = var.admin_cidr
 }
 
-# 3. Module Compute (pfSense Gateway, K3s Master & Multi-AZ Workers)
+# 3. Module Compute (pfSense Gateway, K8s Master & Multi-AZ Workers)
 module "compute" {
   source                   = "./modules/compute"
   project_name             = var.project_name
@@ -60,20 +34,19 @@ module "compute" {
   private_k8s_subnet_b_id  = module.network.private_k8s_subnet_b_id
   mgmt_subnet_id           = module.network.mgmt_subnet_id
   pfsense_sg_id            = module.security.pfsense_sg_id
-  k3s_sg_id                = module.security.k3s_sg_id
+  k8s_sg_id                = module.security.k8s_sg_id
   wazuh_sg_id              = module.security.wazuh_sg_id
   rancher_sg_id            = module.security.rancher_sg_id
   pfsense_ami_id           = var.pfsense_ami_id
   pfsense_instance_type    = var.pfsense_instance_type
   pfsense_lan_ip           = var.pfsense_lan_ip
-  k3s_master_instance_type = var.k3s_master_instance_type
-  k3s_worker_instance_type = var.k3s_worker_instance_type
+  k8s_master_instance_type = var.k8s_master_instance_type
+  k8s_worker_instance_type = var.k8s_worker_instance_type
   worker_count             = var.worker_count
   enable_wazuh             = var.enable_wazuh
   enable_rancher_vm        = var.enable_rancher_vm
   rancher_instance_type    = var.rancher_instance_type
   wazuh_instance_type      = var.wazuh_instance_type
-  k3s_cluster_token        = var.k3s_cluster_token
 }
 
 # Định tuyến Private Route Table đẩy toàn bộ traffic ra Internet qua pfSense Firewall

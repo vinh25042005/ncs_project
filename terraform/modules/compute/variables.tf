@@ -35,8 +35,8 @@ variable "pfsense_sg_id" {
   type        = string
 }
 
-variable "k3s_sg_id" {
-  description = "ID của Security Group dành cho các node K3s"
+variable "k8s_sg_id" {
+  description = "ID của Security Group dành cho các node Kubernetes Upstream"
   type        = string
 }
 
@@ -68,20 +68,20 @@ variable "pfsense_lan_ip" {
   default     = "10.0.10.254"
 }
 
-variable "k3s_master_instance_type" {
-  description = "Loại máy chủ EC2 cho K3s Control Plane Node"
+variable "k8s_master_instance_type" {
+  description = "Loại máy chủ EC2 cho Kubernetes Control Plane Node"
   type        = string
   default     = "c7i-flex.large"
 }
 
-variable "k3s_worker_instance_type" {
-  description = "Loại máy chủ EC2 cho K3s Worker Nodes"
+variable "k8s_worker_instance_type" {
+  description = "Loại máy chủ EC2 cho Kubernetes Worker Nodes"
   type        = string
   default     = "t3.small"
 }
 
 variable "worker_count" {
-  description = "Số lượng K3s Worker Nodes"
+  description = "Số lượng Kubernetes Worker Nodes"
   type        = number
   default     = 2
 }
@@ -93,7 +93,7 @@ variable "enable_wazuh" {
 }
 
 variable "enable_rancher_vm" {
-  description = "Bật/Tắt máy chủ Rancher EC2 riêng biệt (mặc định tắt, Rancher chạy trực tiếp trên K3s)"
+  description = "Bật/Tắt máy chủ Rancher EC2 riêng biệt (mặc định tắt, Rancher chạy trực tiếp trên K8s)"
   type        = bool
   default     = false
 }
@@ -108,11 +108,4 @@ variable "wazuh_instance_type" {
   description = "Loại máy chủ EC2 cho Wazuh SIEM Server nếu bật"
   type        = string
   default     = "t3.small"
-}
-
-variable "k3s_cluster_token" {
-  description = "Token bí mật dùng để xác thực và kết nối Worker vào K3s Master"
-  type        = string
-  default     = "ncs-secret-cluster-token-2026"
-  sensitive   = true
 }

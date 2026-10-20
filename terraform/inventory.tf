@@ -11,10 +11,10 @@ resource "local_file" "ansible_inventory" {
 pfsense-gateway ansible_host=${module.compute.pfsense_public_ip}
 
 [master]
-k8s-master ansible_host=${module.compute.k3s_master_private_ip}
+k8s-master ansible_host=${module.compute.k8s_master_private_ip}
 
 [workers]
-%{for idx, ip in module.compute.k3s_worker_private_ips~}
+%{for idx, ip in module.compute.k8s_worker_private_ips~}
 k8s-worker-${idx + 1} ansible_host=${ip}
 %{endfor~}
 
@@ -40,10 +40,10 @@ resource "local_file" "ansible_inventory_bastion" {
 pfsense-gateway ansible_host=localhost ansible_connection=local
 
 [master]
-k8s-master ansible_host=${module.compute.k3s_master_private_ip}
+k8s-master ansible_host=${module.compute.k8s_master_private_ip}
 
 [workers]
-%{for idx, ip in module.compute.k3s_worker_private_ips~}
+%{for idx, ip in module.compute.k8s_worker_private_ips~}
 k8s-worker-${idx + 1} ansible_host=${ip}
 %{endfor~}
 

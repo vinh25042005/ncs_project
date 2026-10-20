@@ -79,13 +79,18 @@ resource "aws_security_group" "pfsense" {
   }
 }
 
-# 2. Security Group: K3s Cluster Nodes (Private Subnet - Tuyệt đối không expose ra Internet)
-resource "aws_security_group" "k3s" {
-  name        = "${var.project_name}-sg-k3s"
-  description = "Security Group for K3s Master and Worker Nodes"
+moved {
+  from = aws_security_group.k3s
+  to   = aws_security_group.k8s
+}
+
+# 2. Security Group: Upstream Kubernetes Cluster Nodes (Private Subnet - Không expose ra Internet)
+resource "aws_security_group" "k8s" {
+  name        = "${var.project_name}-sg-k8s"
+  description = "Security Group for Upstream Kubernetes Master and Worker Nodes"
   vpc_id      = var.vpc_id
 
-  # Cho phép nội bộ các node K3s giao tiếp với nhau (Flannel, Kubelet, etcd/kine)
+  # Cho phép nội bộ các node K8s giao tiếp với nhau (Flannel, Kubelet, etcd)
   ingress {
     description = "Inter-node cluster communication"
     from_port   = 0
@@ -94,9 +99,9 @@ resource "aws_security_group" "k3s" {
     self        = true
   }
 
-  # Cho phép traffic từ pfSense forward tới K3s Ingress Controller (Port 80, 443, 6443)
+  # Cho phép traffic từ pfSense forward tới K8s Ingress Controller (Port 80, 443, 7443, 9443)
   ingress {
-    description     = "Traffic from pfSense Firewall to K3s"
+    description     = "Traffic from pfSense Firewall to K8s"
     from_port       = 0
     to_port         = 0
     protocol        = "-1"
@@ -121,7 +126,7 @@ resource "aws_security_group" "k3s" {
   }
 
   tags = {
-    Name = "${var.project_name}-sg-k3s"
+    Name = "${var.project_name}-sg-k8s"
   }
 }
 

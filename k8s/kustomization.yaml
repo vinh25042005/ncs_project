@@ -9,3 +9,5 @@ resources:
   - 02-ingress.yaml
   - 03-hpa.yaml
   - 04-network-policies.yaml
+  - 06-pdb.yaml
+  - 07-resource-quota.yaml
