@@ -1,0 +1,78 @@
+---
+# Role: gateway — Cấu hình Suricata IDS/IPS trên pfSense/Linux Edge Gateway
+# Tự động gán card mạng WAN, kích hoạt service, nạp ruleset phát hiện tấn công
+# =========================================================================
+
+- name: Nhận diện card mạng WAN và LAN thực tế
+  shell: |
+    WAN_DEV=$(ip -o -4 route show to default | awk '{print $5}' | head -n1)
+    [ -z "$WAN_DEV" ] && WAN_DEV="ens5"
+    echo "$WAN_DEV"
+  register: detected_wan_dev
+  changed_when: false
+
+- name: Cập nhật card mạng lắng nghe trong /etc/default/suricata
+  shell: |
+    WAN_DEV="{{ detected_wan_dev.stdout }}"
+    sed -i 's/^RUN=no/RUN=yes/' /etc/default/suricata
+    sed -i "s/^IFACE=.*/IFACE=$WAN_DEV/" /etc/default/suricata
+    sed -i 's/^LISTENMODE=.*/LISTENMODE=af-packet/' /etc/default/suricata
+  changed_when: true
+
+- name: Cập nhật card mạng trong /etc/suricata/suricata.yaml
+  shell: |
+    WAN_DEV="{{ detected_wan_dev.stdout }}"
+    sed -i "s/- interface: eth0/- interface: $WAN_DEV/g" /etc/suricata/suricata.yaml
+  changed_when: true
+
+- name: Tạo thư mục chứa rules nếu chưa tồn tại
+  file:
+    path: /etc/suricata/rules
+    state: directory
+    mode: '0755'
+
+- name: Thêm tập rule phát hiện tấn công Web mẫu vào /etc/suricata/rules/local.rules
+  copy:
+    dest: /etc/suricata/rules/local.rules
+    mode: '0644'
+    content: |
+      # NCS Project Custom IDS Rules for Web Application Attacks
+      alert http any any -> any any (msg:"[NCS-ATTACK] SQL Injection Attempt Detected (UNION SELECT)"; content:"UNION"; nocase; http_uri; sid:1000001; rev:1;)
+      alert http any any -> any any (msg:"[NCS-ATTACK] SQL Injection Attempt Detected (OR 1=1)"; content:"1=1"; nocase; http_uri; sid:1000002; rev:1;)
+      alert http any any -> any any (msg:"[NCS-ATTACK] Path Traversal / LFI Attempt (/etc/passwd)"; content:"etc/passwd"; nocase; http_uri; sid:1000003; rev:1;)
+      alert http any any -> any any (msg:"[NCS-ATTACK] Path Traversal Attempt (../..)"; content:"../.."; http_uri; sid:1000004; rev:1;)
+      alert http any any -> any any (msg:"[NCS-ATTACK] XSS Cross-Site Scripting Attempt (<script>)"; content:"<script>"; nocase; http_uri; sid:1000005; rev:1;)
+      alert http any any -> any any (msg:"[NCS-ATTACK] Sensitive File Probing (.env)"; content:".env"; nocase; http_uri; sid:1000006; rev:1;)
+      alert http any any -> any any (msg:"[NCS-ATTACK] Sensitive File Probing (.git/config)"; content:".git"; nocase; http_uri; sid:1000007; rev:1;)
+      alert http any any -> any any (msg:"[NCS-ATTACK] Remote Command Execution Probe (cmd= / id)"; content:"whoami"; nocase; http_uri; sid:1000008; rev:1;)
+      alert tcp any any -> any 22 (msg:"[NCS-SCAN] SSH Connection to Gateway"; flags:S; sid:1000009; rev:1;)
+
+- name: Đảm bảo local.rules được nạp vào /etc/suricata/suricata.yaml
+  shell: |
+    if ! grep -q 'local.rules' /etc/suricata/suricata.yaml; then
+      sed -i '/rule-files:/a \ - local.rules' /etc/suricata/suricata.yaml
+    fi
+  changed_when: true
+
+- name: Khởi động lại dịch vụ Suricata IDS
+  systemd:
+    name: suricata
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+
+- name: Đợi dịch vụ Suricata khởi động ổn định
+  pause:
+    seconds: 5
+
+- name: Kiểm tra trạng thái hoạt động của Suricata
+  command: systemctl is-active suricata
+  register: suricata_status
+  changed_when: false
+
+- name: Xác nhận Suricata đang chạy
+  assert:
+    that:
+      - suricata_status.stdout == "active"
+    fail_msg: "Suricata service không thể khởi chạy thành công!"
+    success_msg: "Suricata IDS/IPS đã khởi chạy thành công và đang lắng nghe trên card mạng WAN {{ detected_wan_dev.stdout }}!"

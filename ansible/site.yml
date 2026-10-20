@@ -1,38 +1,52 @@
 ---
-# Playbook: site.yml — Triển khai cụm Kubernetes Gốc (v1.31) và Microservices
-# NCS Project: Multi-AZ Kubeadm Cluster with pfSense & Online Boutique
-# ======================================================================
+# Playbook: site.yml — Triển khai tự động toàn diện hệ thống an ninh & cụm K8s
+# NCS Project: pfSense/Linux Gateway Suricata IDS/IPS + Upstream K8s v1.31 + Metrics-Server + Online Boutique
+# ==========================================================================================================
 
-# Bước 1: Chuẩn bị OS, containerd, swap đệm và cài kubeadm/kubelet/kubectl trên mọi node
-- name: Giai đoạn 1 - Cấu hình nền tảng trên toàn bộ các node (Common Prerequisites)
+# Giai đoạn 1: Cấu hình Gateway và kích hoạt Suricata IDS/IPS
+- name: Giai đoạn 1 - Tự động hóa cấu hình Gateway & Suricata IDS/IPS
+  hosts: gateway
+  become: yes
+  roles:
+    - gateway
+
+# Giai đoạn 2: Chuẩn bị OS, containerd, swap đệm và cài kubeadm/kubelet/kubectl trên mọi node
+- name: Giai đoạn 2 - Cấu hình nền tảng trên toàn bộ các node (Common Prerequisites)
   hosts: k8s_cluster
   become: yes
   roles:
     - common
 
-# Bước 2: Khởi tạo Control-Plane Master node và cài Flannel CNI
-- name: Giai đoạn 2 - Khởi tạo Kubernetes Control-Plane (kubeadm init)
+# Giai đoạn 3: Khởi tạo Control-Plane Master node và cài Flannel CNI
+- name: Giai đoạn 3 - Khởi tạo Kubernetes Control-Plane (kubeadm init)
   hosts: master
   become: yes
   roles:
     - master
 
-# Bước 3: Tham gia các Worker node vào cụm (Multi-AZ)
-- name: Giai đoạn 3 - Kết nối Worker nodes vào cụm (kubeadm join)
+# Giai đoạn 4: Tham gia các Worker node vào cụm (Multi-AZ)
+- name: Giai đoạn 4 - Kết nối Worker nodes vào cụm (kubeadm join)
   hosts: workers
   become: yes
   roles:
     - worker
 
-# Bước 4: Cài đặt Ingress-NGINX Bare-metal HostNetwork trên Master
-- name: Giai đoạn 4 - Triển khai Ingress-NGINX Controller
+# Giai đoạn 5: Cài đặt Ingress-NGINX Bare-metal HostNetwork trên Master
+- name: Giai đoạn 5 - Triển khai Ingress-NGINX Controller
   hosts: master
   become: yes
   roles:
     - ingress
 
-# Bước 5: Triển khai 12 microservices của Google Online Boutique từ thư mục k8s/
-- name: Giai đoạn 5 - Triển khai Google Online Boutique và Network Policies
+# Giai đoạn 6: Cài đặt Metrics-Server cho cụm K8s (phục vụ HPA và kubectl top)
+- name: Giai đoạn 6 - Triển khai Metrics-Server cho HPA Autoscaling
+  hosts: master
+  become: yes
+  roles:
+    - metrics_server
+
+# Giai đoạn 7: Triển khai 12 microservices của Google Online Boutique từ thư mục k8s/
+- name: Giai đoạn 7 - Triển khai Google Online Boutique và Network Policies
   hosts: master
   become: yes
   roles:

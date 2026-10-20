@@ -1,0 +1,44 @@
+---
+# Role: metrics_server — Tự động cài đặt và cấu hình Metrics-Server cho cụm K8s
+# Phục vụ Horizontal Pod Autoscaler (HPA) và lệnh kubectl top nodes / pods
+# =========================================================================
+
+- name: Cài đặt Metrics-Server từ official manifests
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+  changed_when: true
+
+- name: Cấu hình tham số --kubelet-insecure-tls để Metrics-Server có thể đọc số liệu từ Kubelet
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl patch deployment metrics-server -n kube-system \
+      --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]' || true
+  changed_when: true
+
+- name: Đợi Metrics-Server Deployment đạt trạng thái sẵn sàng (Available)
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl rollout status deployment/metrics-server -n kube-system --timeout=180s
+  changed_when: false
+
+- name: Đợi 15 giây để Metrics-Server hoàn thành chu kỳ thu thập dữ liệu (scrape) đầu tiên
+  pause:
+    seconds: 15
+
+- name: Kiểm tra số liệu CPU/RAM của các Nodes (kubectl top nodes)
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl top nodes
+  register: top_nodes_output
+  changed_when: false
+
+- name: Hiển thị kết quả thu thập số liệu Nodes
+  debug:
+    var: top_nodes_output.stdout_lines
+
+- name: Kiểm tra trạng thái HPA của Online Boutique
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get hpa -n online-boutique
+  register: hpa_output
+  changed_when: false
+
+- name: Hiển thị trạng thái HPA sau khi kích hoạt Metrics-Server
+  debug:
+    var: hpa_output.stdout_lines

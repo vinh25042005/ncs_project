@@ -7,6 +7,9 @@ resource "local_file" "ansible_inventory" {
 # Ansible Inventory for NCS Project K8s Cluster (Kubeadm)
 # Tự động sinh bởi Terraform
 
+[gateway]
+pfsense-gateway ansible_host=${module.compute.pfsense_public_ip}
+
 [master]
 k8s-master ansible_host=${module.compute.k3s_master_private_ip}
 
@@ -32,6 +35,9 @@ resource "local_file" "ansible_inventory_bastion" {
   content         = <<-EOF
 # Ansible Inventory chạy trực tiếp từ pfSense Gateway (Không cần ProxyJump)
 # Tự động sinh bởi Terraform
+
+[gateway]
+pfsense-gateway ansible_host=localhost ansible_connection=local
 
 [master]
 k8s-master ansible_host=${module.compute.k3s_master_private_ip}
