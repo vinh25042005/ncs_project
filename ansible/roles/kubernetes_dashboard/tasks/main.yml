@@ -1,0 +1,60 @@
+---
+# Role: kubernetes_dashboard — Tự động cài đặt Kubernetes Dashboard Web UI
+# Phục vụ quản trị trực quan cụm K8s (Pods, Deployments, Nodes, HPA, Logs, Terminal)
+# ==============================================================================
+
+- name: Cài đặt Kubernetes Dashboard từ official recommended manifests
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+  changed_when: true
+
+- name: Chuyển đổi Service kubernetes-dashboard sang NodePort (30443)
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl patch svc kubernetes-dashboard -n kubernetes-dashboard \
+      --type='json' -p='[{"op": "replace", "path": "/spec/type", "value": "NodePort"}, {"op": "replace", "path": "/spec/ports/0/nodePort", "value": 30443}]' || true
+  changed_when: true
+
+- name: Tạo ServiceAccount và cấp quyền cluster-admin cho admin-user
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f - <<EOF
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: admin-user
+      namespace: kubernetes-dashboard
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: admin-user
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-admin
+    subjects:
+    - kind: ServiceAccount
+      name: admin-user
+      namespace: kubernetes-dashboard
+    EOF
+  changed_when: true
+
+- name: Đợi Pods của Kubernetes Dashboard sẵn sàng
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl rollout status deployment/kubernetes-dashboard -n kubernetes-dashboard --timeout=120s
+  changed_when: false
+
+- name: Tạo Bearer Token đăng nhập thời hạn 1 năm cho admin-user
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl create token admin-user -n kubernetes-dashboard --duration=8760h
+  register: dashboard_admin_token
+  changed_when: false
+
+- name: Lưu token vào file /etc/kubernetes/dashboard-token.txt trên Master
+  copy:
+    dest: /etc/kubernetes/dashboard-token.txt
+    content: "{{ dashboard_admin_token.stdout }}"
+    mode: '0600'
+
+- name: Hiển thị Token đăng nhập Kubernetes Dashboard
+  debug:
+    var: dashboard_admin_token.stdout

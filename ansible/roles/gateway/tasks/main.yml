@@ -70,6 +70,17 @@
   register: suricata_status
   changed_when: false
 
+- name: Cấu hình chuyển tiếp cổng 8443 (DNAT) vào Kubernetes Dashboard (Port 30443 trên Master)
+  shell: |
+    WAN_DEV="{{ detected_wan_dev.stdout }}"
+    if ! iptables -t nat -C PREROUTING -i $WAN_DEV -p tcp --dport 8443 -j DNAT --to-destination 10.0.10.10:30443 2>/dev/null; then
+      iptables -t nat -A PREROUTING -i $WAN_DEV -p tcp --dport 8443 -j DNAT --to-destination 10.0.10.10:30443
+    fi
+    if ! iptables -t nat -C POSTROUTING -p tcp -d 10.0.10.10 --dport 30443 -j MASQUERADE 2>/dev/null; then
+      iptables -t nat -A POSTROUTING -p tcp -d 10.0.10.10 --dport 30443 -j MASQUERADE
+    fi
+  changed_when: true
+
 - name: Xác nhận Suricata đang chạy
   assert:
     that:

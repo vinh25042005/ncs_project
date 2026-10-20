@@ -45,8 +45,15 @@
   roles:
     - metrics_server
 
-# Giai đoạn 7: Triển khai 12 microservices của Google Online Boutique từ thư mục k8s/
-- name: Giai đoạn 7 - Triển khai Google Online Boutique và Network Policies
+# Giai đoạn 7: Cài đặt Kubernetes Dashboard Web UI
+- name: Giai đoạn 7 - Triển khai Kubernetes Dashboard Web UI
+  hosts: master
+  become: yes
+  roles:
+    - kubernetes_dashboard
+
+# Giai đoạn 8: Triển khai 12 microservices của Google Online Boutique từ thư mục k8s/
+- name: Giai đoạn 8 - Triển khai Google Online Boutique và Network Policies
   hosts: master
   become: yes
   roles:
