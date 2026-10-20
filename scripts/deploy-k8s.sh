@@ -25,7 +25,9 @@ until ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o Connect
   echo "Đang đợi pfSense SSH ($PFSENSE_IP)..."
   sleep 5
 done
-echo ">> pfSense Gateway đã sẵn sàng!"
+echo ">> pfSense Gateway SSH đã sẵn sàng! Đang đợi hoàn tất cài đặt package (cloud-init)..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$SSH_KEY" ubuntu@"$PFSENSE_IP" "cloud-init status --wait"
+echo ">> pfSense Gateway và Ansible Controller đã sẵn sàng 100%!"
 
 echo "=========================================================="
 echo ">> BƯỚC 3: ĐỒNG BỘ MÃ NGUỒN ANSIBLE LÊN PFSENSE BASTION..."

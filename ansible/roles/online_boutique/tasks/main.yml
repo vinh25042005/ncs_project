@@ -10,13 +10,20 @@
 
 - name: Sao chép toàn bộ thư mục k8s lên Master node
   copy:
-    src: "{{ playbook_dir }}/../k8s/"
+    src: "{{ item }}"
     dest: /opt/k8s/
     mode: '0644'
+  with_first_found:
+    - "{{ playbook_dir }}/k8s/"
+    - "{{ playbook_dir }}/../k8s/"
 
 - name: Áp dụng toàn bộ Kubernetes manifests bằng Kustomize
   shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -k /opt/k8s/
+    if [ -f /opt/k8s/kustomization.yaml ]; then
+      KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -k /opt/k8s/
+    else
+      KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -k /opt/k8s/k8s/
+    fi
   changed_when: true
 
 - name: Đợi các Deployments của Online Boutique khởi chạy thành công

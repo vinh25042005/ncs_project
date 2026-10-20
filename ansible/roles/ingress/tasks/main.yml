@@ -2,6 +2,11 @@
 # Role: ingress — Cài đặt Ingress-NGINX Controller cho Kubernetes Gốc (Baremetal HostNetwork)
 # =========================================================================================
 
+- name: Bỏ taint control-plane trên Master node để có thể chạy Ingress Controller
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null || true
+  changed_when: false
+
 - name: Cài đặt Ingress-NGINX Bare-metal Manifests
   shell: |
     KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/baremetal/deploy.yaml
@@ -18,10 +23,7 @@
     KUBECONFIG=/etc/kubernetes/admin.conf kubectl annotate ingressclass nginx ingressclass.kubernetes.io/is-default-class="true" --overwrite
   changed_when: false
 
-- name: Đợi Ingress-NGINX Controller Pod đạt trạng thái sẵn sàng (Running)
+- name: Đợi Ingress-NGINX Controller Deployment đạt trạng thái sẵn sàng (Rolled Out)
   shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl wait --namespace ingress-nginx \
-      --for=condition=ready pod \
-      --selector=app.kubernetes.io/component=controller \
-      --timeout=180s
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl rollout status deployment/ingress-nginx-controller -n ingress-nginx --timeout=180s
   changed_when: false

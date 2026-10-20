@@ -19,7 +19,7 @@
 
 - name: Đợi Master xác nhận Worker node chuyển sang trạng thái Ready
   shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes | grep "{{ inventory_hostname }}" | grep -w "Ready"
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes -o wide | grep "{{ ansible_host }}" | grep -w "Ready"
   delegate_to: "{{ groups['master'][0] }}"
   register: worker_ready
   until: worker_ready.rc == 0

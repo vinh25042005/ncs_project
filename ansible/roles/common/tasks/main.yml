@@ -60,6 +60,8 @@
       - gnupg
       - lsb-release
       - jq
+      - conntrack
+      - socat
     state: present
     update_cache: yes
 
@@ -68,11 +70,12 @@
     name: containerd
     state: present
 
-- name: Cấu hình containerd với SystemdCgroup = true
+- name: Cấu hình containerd với SystemdCgroup = true và pause:3.10
   shell: |
     mkdir -p /etc/containerd
     containerd config default > /etc/containerd/config.toml
     sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+    sed -i 's|sandbox_image = .*|sandbox_image = "registry.k8s.io/pause:3.10"|' /etc/containerd/config.toml
     systemctl restart containerd
     systemctl enable containerd
   changed_when: true
@@ -112,7 +115,7 @@
     - kubeadm
     - kubectl
 
-- name: Cấu hình Kubelet cho phép Swap (failSwapOn: false)
+- name: "Cấu hình Kubelet cho phép Swap (failSwapOn: false)"
   copy:
     dest: /etc/default/kubelet
     content: |

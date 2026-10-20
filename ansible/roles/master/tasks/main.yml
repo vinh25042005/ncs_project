@@ -7,6 +7,32 @@
     path: /etc/kubernetes/admin.conf
   register: kubeadmin_conf
 
+- name: Tạo thư mục cấu hình và audit log
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /etc/kubernetes
+    - /var/log/kubernetes
+
+- name: Tạo file audit-policy.yaml cho K8s API Server (phục vụ Wazuh SIEM)
+  copy:
+    dest: /etc/kubernetes/audit-policy.yaml
+    content: |
+      apiVersion: audit.k8s.io/v1
+      kind: Policy
+      rules:
+        - level: Metadata
+          resources:
+            - group: ""
+              resources: ["secrets", "configmaps"]
+        - level: RequestResponse
+          resources:
+            - group: ""
+              resources: ["pods", "pods/exec"]
+        - level: Metadata
+
 - name: Tạo cấu hình kubeadm-config.yaml
   copy:
     dest: /etc/kubernetes/kubeadm-config.yaml
@@ -29,28 +55,22 @@
         extraArgs:
           audit-log-path: "/var/log/kubernetes/audit.log"
           audit-policy-file: "/etc/kubernetes/audit-policy.yaml"
+        extraVolumes:
+          - name: "audit-policy"
+            hostPath: "/etc/kubernetes/audit-policy.yaml"
+            mountPath: "/etc/kubernetes/audit-policy.yaml"
+            readOnly: true
+            pathType: "File"
+          - name: "audit-log"
+            hostPath: "/var/log/kubernetes"
+            mountPath: "/var/log/kubernetes"
+            readOnly: false
+            pathType: "DirectoryOrCreate"
       ---
       apiVersion: kubelet.config.k8s.io/v1beta1
       kind: KubeletConfiguration
       failSwapOn: false
   when: not kubeadmin_conf.stat.exists
-
-- name: Tạo file audit-policy.yaml cho K8s API Server (phục vụ Wazuh SIEM)
-  copy:
-    dest: /etc/kubernetes/audit-policy.yaml
-    content: |
-      apiVersion: audit.k8s.io/v1
-      kind: Policy
-      rules:
-        - level: Metadata
-          resources:
-            - group: ""
-              resources: ["secrets", "configmaps"]
-        - level: RequestResponse
-          resources:
-            - group: ""
-              resources: ["pods", "pods/exec"]
-        - level: Metadata
 
 - name: Khởi tạo Kubernetes Control-Plane với kubeadm
   shell: |
