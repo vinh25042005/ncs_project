@@ -1,384 +1,540 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 870" width="100%" height="100%" style="background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1020" width="100%" height="100%" style="background:#090d16; font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <defs>
-    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
-      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.08"/>
+    <!-- Glow and Drop Shadow Filters -->
+    <filter id="shadow-main" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.5"/>
     </filter>
-    <filter id="card-shadow" x="-3%" y="-3%" width="106%" height="106%">
-      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.06"/>
+    <filter id="shadow-card" x="-4%" y="-4%" width="108%" height="108%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.4"/>
     </filter>
-    <linearGradient id="pfsense-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#eff6ff"/>
-      <stop offset="100%" stop-color="#dbeafe"/>
+    <filter id="glow-orange" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <!-- Gradients -->
+    <linearGradient id="grad-vpc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0c1322"/>
     </linearGradient>
-    <linearGradient id="cloud-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#f0f9ff"/>
-      <stop offset="100%" stop-color="#e0f2fe"/>
+    <linearGradient id="grad-az-a" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#111c35"/>
+      <stop offset="100%" stop-color="#0d1527"/>
+    </linearGradient>
+    <linearGradient id="grad-az-b" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#141a30"/>
+      <stop offset="100%" stop-color="#0e1324"/>
+    </linearGradient>
+    <linearGradient id="grad-pfsense" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="grad-master" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#172554"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="grad-worker" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#13273e"/>
+      <stop offset="100%" stop-color="#0c1827"/>
+    </linearGradient>
+    <linearGradient id="grad-accent-aws" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff9900"/>
+      <stop offset="100%" stop-color="#ec7211"/>
+    </linearGradient>
+    <linearGradient id="grad-accent-k8s" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#326ce5"/>
+      <stop offset="100%" stop-color="#2563eb"/>
     </linearGradient>
   </defs>
 
-  <!-- BORDER FRAME -->
-  <rect x="15" y="15" width="1170" height="840" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)"/>
-
-  <!-- ================= TOP SECTION: ACCESS FLOWS & INTERNET ================= -->
+  <!-- ================= TOP HEADER BAR ================= -->
+  <rect x="25" y="15" width="1390" height="52" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.2" filter="url(#shadow-main)"/>
   
-  <!-- Flow 1 Box: Direct Web Access -->
-  <g transform="translate(40, 35)">
-    <rect width="320" height="75" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.2" filter="url(#card-shadow)"/>
-    <rect x="12" y="-10" width="220" height="20" rx="10" fill="#16a34a"/>
-    <text x="122" y="4" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">1. TRUY CẬP WEB TRỰC TIẾP (INTERNET)</text>
-    
-    <circle cx="38" cy="45" r="18" fill="#dcfce7"/>
-    <!-- Laptop Icon -->
-    <path d="M28 48 h20 v-12 h-20 z M25 51 h26 v2 h-26 z" fill="#15803d"/>
-    
-    <text x="68" y="38" font-size="12" font-weight="bold" fill="#1e293b">Khách hàng Internet (Laptop/Mobile)</text>
-    <text x="68" y="52" font-size="10" font-weight="600" fill="#15803d">Truy cập Online Boutique Store</text>
-    <text x="68" y="66" font-size="9.5" font-family="monospace" fill="#64748b">http://13.228.8.81 (Cổng 80 HTTP)</text>
+  <!-- AWS Logo Badge -->
+  <rect x="40" y="25" width="60" height="32" rx="5" fill="#ff9900"/>
+  <text x="70" y="47" font-size="14" font-weight="900" fill="#0f172a" text-anchor="middle" letter-spacing="1">AWS</text>
+  
+  <text x="115" y="46" font-size="16" font-weight="800" fill="#f8fafc" letter-spacing="0.5">KIẾN TRÚC HẠ TẦNG AN NINH MẠNG VÀ MICROSERVICES MULTI-AZ TRÊN AWS</text>
+  
+  <!-- Badges on Header Right -->
+  <g transform="translate(940, 26)">
+    <rect x="0" y="0" width="145" height="30" rx="15" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <circle cx="15" cy="15" r="5" fill="#22c55e"/>
+    <text x="78" y="20" font-size="10.5" font-weight="700" fill="#94a3b8" text-anchor="middle">Region: ap-southeast-1</text>
+  </g>
+  <g transform="translate(1095, 26)">
+    <rect x="0" y="0" width="150" height="30" rx="15" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <circle cx="15" cy="15" r="5" fill="#38bdf8"/>
+    <text x="80" y="20" font-size="10.5" font-weight="700" fill="#94a3b8" text-anchor="middle">AWS 8.0 vCPU Quota</text>
+  </g>
+  <g transform="translate(1255, 26)">
+    <rect x="0" y="0" width="145" height="30" rx="15" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <circle cx="15" cy="15" r="5" fill="#f59e0b"/>
+    <text x="78" y="20" font-size="10.5" font-weight="700" fill="#94a3b8" text-anchor="middle">Zero-Trust Network</text>
   </g>
 
-  <!-- Internet Cloud Center -->
-  <g transform="translate(530, 30)">
-    <ellipse cx="70" cy="40" rx="55" ry="32" fill="url(#cloud-grad)" stroke="#38bdf8" stroke-width="2" filter="url(#card-shadow)"/>
-    <!-- Cloud paths -->
-    <path d="M48 45 a14 14 0 0 1 18 -16 a22 22 0 0 1 36 2 a16 16 0 0 1 14 18 a16 16 0 0 1 -14 10 h-50 a12 12 0 0 1 -4 -14 z" fill="#0284c7" opacity="0.85"/>
-    <text x="70" y="80" font-size="10" font-weight="900" fill="#0369a1" text-anchor="middle" letter-spacing="1">INTERNET / CLOUD</text>
+  <!-- ================= EXTERNAL ACTORS / INGRESS (INTERNET) ================= -->
+  <g transform="translate(25, 80)">
+    <!-- Actor 1: Public Shopper -->
+    <g transform="translate(0, 0)">
+      <rect width="320" height="66" rx="8" fill="#111c2e" stroke="#16a34a" stroke-width="1.2" filter="url(#shadow-card)"/>
+      <rect x="12" y="-9" width="170" height="18" rx="9" fill="#16a34a"/>
+      <text x="97" y="4" font-size="8.5" font-weight="800" fill="#ffffff" text-anchor="middle">1. KHÁCH HÀNG INTERNET</text>
+      <circle cx="32" cy="38" r="15" fill="#14532d"/>
+      <text x="32" y="43" font-size="14" fill="#ffffff" text-anchor="middle">🛒</text>
+      <text x="58" y="32" font-size="11" font-weight="700" fill="#f8fafc">Google Online Boutique</text>
+      <text x="58" y="48" font-size="9.5" font-family="monospace" font-weight="600" fill="#4ade80">http://13.251.225.100 (Port 80)</text>
+    </g>
+
+    <!-- Actor 2: Rancher Admin -->
+    <g transform="translate(355, 0)">
+      <rect width="320" height="66" rx="8" fill="#111c2e" stroke="#0284c7" stroke-width="1.2" filter="url(#shadow-card)"/>
+      <rect x="12" y="-9" width="170" height="18" rx="9" fill="#0284c7"/>
+      <text x="97" y="4" font-size="8.5" font-weight="800" fill="#ffffff" text-anchor="middle">2. QUẢN TRỊ VIÊN RANCHER</text>
+      <circle cx="32" cy="38" r="15" fill="#075985"/>
+      <text x="32" y="43" font-size="14" fill="#ffffff" text-anchor="middle">☸</text>
+      <text x="58" y="32" font-size="11" font-weight="700" fill="#f8fafc">Rancher Management UI</text>
+      <text x="58" y="48" font-size="9.5" font-family="monospace" font-weight="600" fill="#38bdf8">https://13.251.225.100:7443</text>
+    </g>
+
+    <!-- Actor 3: Wazuh SOC Analyst -->
+    <g transform="translate(710, 0)">
+      <rect width="320" height="66" rx="8" fill="#111c2e" stroke="#9333ea" stroke-width="1.2" filter="url(#shadow-card)"/>
+      <rect x="12" y="-9" width="170" height="18" rx="9" fill="#9333ea"/>
+      <text x="97" y="4" font-size="8.5" font-weight="800" fill="#ffffff" text-anchor="middle">3. CHUYÊN VIÊN AN NINH SOC</text>
+      <circle cx="32" cy="38" r="15" fill="#581c87"/>
+      <text x="32" y="43" font-size="14" fill="#ffffff" text-anchor="middle">🛡</text>
+      <text x="58" y="32" font-size="11" font-weight="700" fill="#f8fafc">Wazuh SIEM Dashboard</text>
+      <text x="58" y="48" font-size="9.5" font-family="monospace" font-weight="600" fill="#c084fc">https://13.251.225.100:8443</text>
+    </g>
+
+    <!-- Actor 4: DevSecOps Engineer SSH -->
+    <g transform="translate(1065, 0)">
+      <rect width="325" height="66" rx="8" fill="#111c2e" stroke="#f59e0b" stroke-width="1.2" filter="url(#shadow-card)"/>
+      <rect x="12" y="-9" width="170" height="18" rx="9" fill="#d97706"/>
+      <text x="97" y="4" font-size="8.5" font-weight="800" fill="#ffffff" text-anchor="middle">4. KỸ SƯ DEVSECOPS (CLI)</text>
+      <circle cx="32" cy="38" r="15" fill="#78350f"/>
+      <text x="32" y="43" font-size="14" fill="#ffffff" text-anchor="middle">🔑</text>
+      <text x="58" y="32" font-size="11" font-weight="700" fill="#f8fafc">SSH Bastion / ProxyJump</text>
+      <text x="58" y="48" font-size="9.5" font-family="monospace" font-weight="600" fill="#fbbf24">ssh -J ubuntu@13.251.225.100:22</text>
+    </g>
   </g>
 
-  <!-- Flow 2 Box: Remote Admin / SSH Bastion -->
-  <g transform="translate(840, 35)">
-    <rect width="320" height="75" rx="8" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.2" filter="url(#card-shadow)"/>
-    <rect x="80" y="-10" width="230" height="20" rx="10" fill="#4f46e5"/>
-    <text x="195" y="4" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">2. QUẢN TRỊ VIÊN (SSH PROXYJUMP)</text>
-    
-    <circle cx="40" cy="45" r="18" fill="#e0e7ff"/>
-    <!-- Lock/Key Icon -->
-    <path d="M34 42 v-4 a6 6 0 0 1 12 0 v4 h2 v12 h-16 v-12 z M37 42 h6 v-4 a3 3 0 0 0 -6 0 z" fill="#4338ca"/>
-    
-    <text x="68" y="38" font-size="12" font-weight="bold" fill="#1e293b">Quản trị viên (DevSecOps Admin)</text>
-    <text x="68" y="52" font-size="10" font-weight="600" fill="#4338ca">SSH Bastion &amp; kubectl CLI Remote</text>
-    <text x="68" y="66" font-size="9.5" font-family="monospace" fill="#64748b">ssh -J ubuntu@13.228.8.81 (Cổng 22)</text>
-  </g>
+  <!-- Traffic Line: Internet down into AWS Gateway -->
+  <path d="M 185 146 L 185 165 L 720 165 L 720 185" fill="none" stroke="#22c55e" stroke-width="2" stroke-dasharray="4,4"/>
+  <path d="M 515 146 L 515 165" fill="none" stroke="#0284c7" stroke-width="2" stroke-dasharray="4,4"/>
+  <path d="M 870 146 L 870 165" fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="4,4"/>
+  <path d="M 1225 146 L 1225 165 L 720 165" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4,4"/>
+  <polygon points="720,188 715,178 725,178" fill="#ff9900"/>
 
-  <!-- Connector Lines from Flows to Internet -->
-  <path d="M 360 72 L 470 72" fill="none" stroke="#22c55e" stroke-width="2" stroke-dasharray="4,4"/>
-  <polygon points="472,72 464,68 464,76" fill="#22c55e"/>
-
-  <path d="M 840 72 L 730 72" fill="none" stroke="#6366f1" stroke-width="2" stroke-dasharray="4,4"/>
-  <polygon points="728,72 736,68 736,76" fill="#6366f1"/>
-
-  <!-- ================= CENTER SECTION: PFSENSE FIREWALL & ROUTER ================= -->
-  <g transform="translate(40, 130)">
-    <!-- pfSense Main Container -->
-    <rect width="1120" height="120" rx="12" fill="url(#pfsense-grad)" stroke="#3b82f6" stroke-width="1.8" filter="url(#shadow)"/>
+  <!-- ================= AWS VPC BOUNDARY ================= -->
+  <g transform="translate(25, 185)">
+    <!-- VPC Container Box -->
+    <rect width="1390" height="660" rx="12" fill="url(#grad-vpc)" stroke="#3b82f6" stroke-width="1.8" filter="url(#shadow-main)"/>
     
-    <!-- WAN Info Badge on the left -->
-    <rect x="15" y="-11" width="460" height="22" rx="4" fill="#0f172a"/>
-    <text x="25" y="4" font-size="9" font-weight="bold" fill="#f8fafc" letter-spacing="0.3">
-      THÔNG TIN WAN (INTERNET): IP Public: 13.228.8.81 • NAT Outbound: BẬT • Suricata IDS/IPS
+    <!-- VPC Header Banner -->
+    <rect x="20" y="-12" width="560" height="24" rx="6" fill="#1d4ed8"/>
+    <text x="30" y="5" font-size="11" font-weight="900" fill="#ffffff" letter-spacing="0.5">
+      AMAZON VPC: 10.0.0.0/16 (ncs-project-vpc) • DNS Hostnames: Enabled • DNS Resolution: Enabled
     </text>
 
-    <!-- pfSense Brand & Title -->
-    <g transform="translate(435, 16)">
-      <rect x="0" y="0" width="36" height="36" rx="8" fill="#dc2626"/>
-      <text x="18" y="24" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle">pf</text>
-      <text x="48" y="22" font-size="16" font-weight="900" fill="#0f172a" letter-spacing="0.5">PFSENSE / LINUX EDGE GATEWAY</text>
-      <text x="48" y="34" font-size="9.5" font-weight="600" fill="#2563eb">Tường lửa an ninh biên • Suricata IDS/IPS • Stateful Inspection • Port Forward 80 &amp; SSH JumpHost</text>
+    <!-- AWS IGW & EIP Indicator on top border -->
+    <g transform="translate(620, -14)">
+      <rect width="200" height="26" rx="6" fill="#0f172a" stroke="#ff9900" stroke-width="1.5"/>
+      <circle cx="16" cy="13" r="5" fill="#ff9900"/>
+      <text x="28" y="17" font-size="10.5" font-weight="800" fill="#f8fafc">AWS Internet Gateway (IGW)</text>
+    </g>
+    <g transform="translate(835, -14)">
+      <rect width="210" height="26" rx="6" fill="#0f172a" stroke="#22c55e" stroke-width="1.5"/>
+      <circle cx="16" cy="13" r="5" fill="#22c55e"/>
+      <text x="28" y="17" font-size="10" font-family="monospace" font-weight="800" fill="#4ade80">Elastic IP: 13.251.225.100</text>
     </g>
 
-    <!-- Interfaces Ribbon -->
-    <g transform="translate(30, 60)">
-      <!-- WAN Card -->
-      <g transform="translate(0, 0)">
-        <rect width="240" height="46" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
-        <text x="120" y="15" font-size="9" font-weight="bold" fill="#dc2626" text-anchor="middle" letter-spacing="0.5">GIAO DIỆN WAN (ENS5)</text>
-        <text x="120" y="29" font-size="11" font-family="monospace" font-weight="bold" fill="#1e293b" text-anchor="middle">10.0.1.8 / 13.228.8.81</text>
-        <text x="120" y="40" font-size="8.5" fill="#64748b" text-anchor="middle">Public Gateway / Elastic IP</text>
+    <!-- ================= PUBLIC SUBNET (WAN) & SECURITY GATEWAY ================= -->
+    <g transform="translate(25, 25)">
+      <!-- Public Subnet Frame -->
+      <rect width="1340" height="150" rx="10" fill="#0b1329" stroke="#0284c7" stroke-width="1.2" stroke-dasharray="6,4"/>
+      
+      <!-- Subnet Title & Badges -->
+      <g transform="translate(15, 12)">
+        <rect width="260" height="22" rx="4" fill="#0284c7"/>
+        <text x="10" y="15" font-size="10" font-weight="800" fill="#ffffff">PUBLIC WAN SUBNET (AZ-a): 10.0.1.0/24</text>
+        <text x="280" y="15" font-size="9.5" font-weight="700" fill="#38bdf8">AWS Route Table: [0.0.0.0/0 → aws_internet_gateway.igw]</text>
       </g>
 
-      <!-- LAN AZ-A Card -->
-      <g transform="translate(270, 0)">
-        <rect width="250" height="46" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="1"/>
-        <text x="125" y="15" font-size="9" font-weight="bold" fill="#2563eb" text-anchor="middle" letter-spacing="0.5">LAN GATEWAY AZ-A (ENS6)</text>
-        <text x="125" y="29" font-size="11" font-family="monospace" font-weight="bold" fill="#1e293b" text-anchor="middle">10.0.10.254 (Subnet 10.0.10.0/24)</text>
-        <text x="125" y="40" font-size="8.5" fill="#64748b" text-anchor="middle">Default Gateway K8s Master &amp; Worker 1</text>
+      <g transform="translate(870, 12)">
+        <rect width="450" height="22" rx="4" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+        <text x="12" y="15" font-size="9" font-family="monospace" fill="#94a3b8">Security Group: ncs-project-sg-pfsense (Inbound: 80, 7443, 8443, 22)</text>
       </g>
 
-      <!-- LAN AZ-B Card -->
-      <g transform="translate(545, 0)">
-        <rect width="250" height="46" rx="6" fill="#ffffff" stroke="#c7d2fe" stroke-width="1"/>
-        <text x="125" y="15" font-size="9" font-weight="bold" fill="#4f46e5" text-anchor="middle" letter-spacing="0.5">LAN ROUTE AZ-B (MULTI-AZ)</text>
-        <text x="125" y="29" font-size="11" font-family="monospace" font-weight="bold" fill="#1e293b" text-anchor="middle">10.0.11.0/24 (Subnet B)</text>
-        <text x="125" y="40" font-size="8.5" fill="#64748b" text-anchor="middle">Cross-AZ Routing cho Worker 2</text>
+      <!-- EC2 Security Gateway Instance Box -->
+      <g transform="translate(15, 42)">
+        <rect width="1310" height="95" rx="8" fill="url(#grad-pfsense)" stroke="#475569" stroke-width="1.2" filter="url(#shadow-card)"/>
+        
+        <!-- EC2 Instance Info Left Column -->
+        <g transform="translate(15, 12)">
+          <rect width="32" height="32" rx="6" fill="#ea580c"/>
+          <text x="16" y="22" font-size="16" fill="#ffffff" text-anchor="middle">🛡</text>
+          <text x="42" y="18" font-size="12" font-weight="800" fill="#f8fafc">pfsense-gateway (Ubuntu 22.04 LTS Security Gateway)</text>
+          <text x="42" y="32" font-size="9.5" font-family="monospace" fill="#94a3b8">EC2: t3.small (2 vCPU, 2GB RAM) • IMDSv2 Enforced • EBS KMS-Encrypted (gp3 20GB)</text>
+          
+          <!-- Dual ENI Badges -->
+          <g transform="translate(42, 42)">
+            <rect width="195" height="26" rx="4" fill="#1e293b" stroke="#0284c7" stroke-width="1"/>
+            <text x="8" y="17" font-size="9" font-family="monospace" font-weight="700" fill="#38bdf8">WAN ENI (ens5): 10.0.1.x (EIP)</text>
+            
+            <rect x="205" y="0" width="220" height="26" rx="4" fill="#1e293b" stroke="#22c55e" stroke-width="1"/>
+            <text x="213" y="17" font-size="9" font-family="monospace" font-weight="700" fill="#4ade80">LAN ENI (ens6): 10.0.10.254 (Def GW)</text>
+          </g>
+        </g>
+
+        <!-- Gateway Engines Ribbon (Suricata, DNAT, Wazuh Agent, SSH) -->
+        <g transform="translate(510, 14)">
+          <!-- Engine 1: IPTables DNAT Engine -->
+          <g transform="translate(0, 0)">
+            <rect width="250" height="68" rx="6" fill="#0f172a" stroke="#3b82f6" stroke-width="1"/>
+            <text x="12" y="18" font-size="10" font-weight="800" fill="#60a5fa">⚙ IPTables NAT / Port Forwarding</text>
+            <text x="12" y="33" font-size="8.5" font-family="monospace" fill="#cbd5e1">• Port 80   → 10.0.10.10:80 (Ingress)</text>
+            <text x="12" y="46" font-size="8.5" font-family="monospace" fill="#cbd5e1">• Port 7443 → 10.0.10.10:30443 (Rancher)</text>
+            <text x="12" y="59" font-size="8.5" font-family="monospace" fill="#cbd5e1">• Port 8443 → 10.0.10.10:9443 (Wazuh)</text>
+          </g>
+
+          <!-- Engine 2: Suricata IDS/IPS Engine -->
+          <g transform="translate(265, 0)">
+            <rect width="260" height="68" rx="6" fill="#0f172a" stroke="#dc2626" stroke-width="1"/>
+            <text x="12" y="18" font-size="10" font-weight="800" fill="#f87171">🔍 Suricata IDS/IPS Engine (AF-PACKET)</text>
+            <text x="12" y="33" font-size="8.5" fill="#e2e8f0">• Giám sát sâu gói tin trên card WAN (ens5)</text>
+            <text x="12" y="46" font-size="8.5" fill="#e2e8f0">• Phát hiện SQLi, XSS, Path Traversal, RCE</text>
+            <text x="12" y="59" font-size="8.5" font-family="monospace" fill="#fca5a5">• Xuất log sự kiện: /var/log/suricata/eve.json</text>
+          </g>
+
+          <!-- Engine 3: Wazuh Agent & Bastion -->
+          <g transform="translate(540, 0)">
+            <rect width="240" height="68" rx="6" fill="#0f172a" stroke="#a855f7" stroke-width="1"/>
+            <text x="12" y="18" font-size="10" font-weight="800" fill="#c084fc">📡 Wazuh Agent &amp; SSH Bastion</text>
+            <text x="12" y="33" font-size="8.5" fill="#e2e8f0">• wazuh-agent v4.9 đẩy eve.json về SIEM</text>
+            <text x="12" y="46" font-size="8.5" fill="#e2e8f0">• SSH JumpHost (Port 22) bảo mật bằng RSA</text>
+            <text x="12" y="59" font-size="8.5" fill="#22c55e">• Masquerade Outbound NAT cho K8s Cluster</text>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- Connector Arrow: Gateway LAN to Private Route Table -->
+    <path d="M 270 175 L 270 215" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+    <polygon points="270,217 266,208 274,208" fill="#22c55e"/>
+
+    <!-- ================= MULTI-AZ SPLIT SECTION (AZ-A & AZ-B) ================= -->
+    
+    <!-- ──────────────── AZ-A (Left Half): Control Plane & Worker 1 ──────────────── -->
+    <g transform="translate(25, 215)">
+      <!-- AZ Container -->
+      <rect width="820" height="425" rx="10" fill="url(#grad-az-a)" stroke="#2563eb" stroke-width="1.4"/>
+      
+      <!-- AZ-a Header Banner -->
+      <rect x="15" y="-10" width="320" height="22" rx="4" fill="#1d4ed8"/>
+      <text x="25" y="5" font-size="10" font-weight="900" fill="#ffffff" letter-spacing="0.5">
+        AWS AVAILABILITY ZONE A: ap-southeast-1a
+      </text>
+
+      <g transform="translate(350, -10)">
+        <rect width="455" height="22" rx="4" fill="#0f172a" stroke="#3b82f6" stroke-width="1"/>
+        <text x="10" y="5" font-size="9" font-family="monospace" fill="#93c5fd">
+          Subnet: 10.0.10.0/24 (Private) • Route: [0.0.0.0/0 → 10.0.10.254 (LAN ENI)]
+        </text>
       </g>
 
-      <!-- MGMT Card -->
-      <g transform="translate(820, 0)">
-        <rect width="240" height="46" rx="6" fill="#ffffff" stroke="#d8b4fe" stroke-width="1"/>
-        <text x="120" y="15" font-size="9" font-weight="bold" fill="#9333ea" text-anchor="middle" letter-spacing="0.5">MANAGEMENT / SIEM ROUTE</text>
-        <text x="120" y="29" font-size="11" font-family="monospace" font-weight="bold" fill="#1e293b" text-anchor="middle">10.0.20.0/24 (Subnet Mgmt)</text>
-        <text x="120" y="40" font-size="8.5" fill="#64748b" text-anchor="middle">Wazuh SIEM &amp; Ansible Automation</text>
+      <!-- Security Group Badge -->
+      <text x="18" y="28" font-size="9.5" font-family="monospace" font-weight="700" fill="#60a5fa">
+        Security Group: ncs-project-sg-k8s (All VPC 10.0.0.0/16 &amp; Gateway Traffic Permitted)
+      </text>
+
+      <!-- ── MASTER NODE CARD (Control Plane, Rancher, Wazuh SIEM) ── -->
+      <g transform="translate(15, 40)">
+        <rect width="490" height="365" rx="8" fill="url(#grad-master)" stroke="#3b82f6" stroke-width="1.2" filter="url(#shadow-card)"/>
+        
+        <!-- Header: Master Node Info -->
+        <g transform="translate(12, 12)">
+          <rect width="30" height="30" rx="6" fill="#2563eb"/>
+          <text x="15" y="21" font-size="15" fill="#ffffff" text-anchor="middle">⚙</text>
+          <text x="38" y="16" font-size="12" font-weight="800" fill="#ffffff">k8s-master (Control Plane &amp; Quản trị)</text>
+          <text x="38" y="28" font-size="9.5" font-family="monospace" fill="#93c5fd">IP: 10.0.10.10 • EC2: c7i-flex.large (2 vCPU, 8GB RAM, IMDSv2)</text>
+        </g>
+        
+        <line x1="12" y1="50" x2="478" y2="50" stroke="#1e3a8a" stroke-width="1"/>
+
+        <!-- Master Block 1: Upstream K8s Core -->
+        <g transform="translate(12, 58)">
+          <rect width="466" height="58" rx="6" fill="#0b1329" stroke="#1d4ed8" stroke-width="0.8"/>
+          <text x="10" y="16" font-size="9.5" font-weight="800" fill="#60a5fa">☸ Upstream Kubernetes Core v1.31.14 (Kubeadm)</text>
+          <text x="10" y="32" font-size="8.5" fill="#cbd5e1">• API Server (Port 6443) • etcd v3.5 • Scheduler • Controller Manager</text>
+          <text x="10" y="46" font-size="8.5" fill="#cbd5e1">• Containerd v2.2.1 • Flannel CNI Master (Pod Subnet: 10.244.0.0/24)</text>
+        </g>
+
+        <!-- Master Block 2: Rancher Server -->
+        <g transform="translate(12, 122)">
+          <rect width="466" height="64" rx="6" fill="#072740" stroke="#0284c7" stroke-width="0.8"/>
+          <text x="10" y="16" font-size="9.5" font-weight="800" fill="#38bdf8">🐄 Rancher Management Server (cattle-system)</text>
+          <text x="10" y="32" font-size="8.5" fill="#e0f2fe">• Quản lý tập trung toàn diện cụm Upstream K8s, Helm apps, RBAC</text>
+          <text x="10" y="46" font-size="8.5" font-family="monospace" fill="#7dd3fc">• NodePort Service: rancher-nodeport (Port 30443 → Pod:443)</text>
+          <text x="10" y="58" font-size="8.5" fill="#38bdf8">• URL truy cập qua Gateway DNAT: https://13.251.225.100:7443</text>
+        </g>
+
+        <!-- Master Block 3: Wazuh SIEM All-in-One -->
+        <g transform="translate(12, 192)">
+          <rect width="466" height="88" rx="6" fill="#1b1233" stroke="#a855f7" stroke-width="0.8"/>
+          <text x="10" y="16" font-size="9.5" font-weight="800" fill="#c084fc">🛡 Wazuh SIEM All-in-One SOC Platform (Port 9443)</text>
+          <text x="10" y="32" font-size="8.5" fill="#f3e8ff">• Wazuh Indexer &amp; OpenSearch DB (Lưu trữ và tìm kiếm log bảo mật)</text>
+          <text x="10" y="46" font-size="8.5" fill="#f3e8ff">• Wazuh Manager (Port 1514/1515: Tiếp nhận log từ Agent và Suricata)</text>
+          <text x="10" y="60" font-size="8.5" fill="#f3e8ff">• Wazuh Dashboard (Port 9443 → DNAT Gateway 8443: Giao diện SOC)</text>
+          <text x="10" y="74" font-size="8.5" font-family="monospace" fill="#e9d5ff">• Thu thập K8s Audit Logs: /var/log/kubernetes/audit.log</text>
+        </g>
+
+        <!-- Master Block 4: Ingress Controller & Cluster Services -->
+        <g transform="translate(12, 286)">
+          <rect width="466" height="66" rx="6" fill="#0f172a" stroke="#334155" stroke-width="0.8"/>
+          <text x="10" y="16" font-size="9.5" font-weight="800" fill="#34d399">🌐 Ingress-NGINX &amp; Cluster Monitoring</text>
+          <text x="10" y="32" font-size="8.5" fill="#cbd5e1">• Ingress-NGINX Controller (HostNetwork Port 80/443 đón traffic Web)</text>
+          <text x="10" y="46" font-size="8.5" fill="#cbd5e1">• Metrics-Server (Thu thập CPU/Memory cấp cluster phục vụ HPA)</text>
+          <text x="10" y="58" font-size="8.5" fill="#cbd5e1">• CoreDNS Cluster Service (10.96.0.10:53) phục vụ phân giải pod</text>
+        </g>
+      </g>
+
+      <!-- ── WORKER NODE 1 CARD (AZ-A Workloads) ── -->
+      <g transform="translate(520, 40)">
+        <rect width="285" height="365" rx="8" fill="url(#grad-worker)" stroke="#0284c7" stroke-width="1.2" filter="url(#shadow-card)"/>
+        
+        <g transform="translate(12, 12)">
+          <rect width="28" height="28" rx="6" fill="#0284c7"/>
+          <text x="14" y="20" font-size="14" fill="#ffffff" text-anchor="middle">📦</text>
+          <text x="36" y="15" font-size="11" font-weight="800" fill="#ffffff">k8s-worker-1</text>
+          <text x="36" y="27" font-size="9" font-family="monospace" fill="#7dd3fc">10.0.10.139 • t3.small (2vCPU, 2GB)</text>
+        </g>
+        
+        <line x1="12" y1="46" x2="273" y2="46" stroke="#0f2942" stroke-width="1"/>
+
+        <!-- Microservices List Worker 1 -->
+        <g transform="translate(10, 52)">
+          <!-- Frontend Microservice -->
+          <rect width="265" height="52" rx="5" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+          <text x="8" y="16" font-size="9.5" font-weight="800" fill="#86efac">★ frontend (Online Boutique Web)</text>
+          <text x="8" y="30" font-size="8.5" fill="#dcfce7">• PodAntiAffinity: Tự rải đều sang Worker 2</text>
+          <text x="8" y="44" font-size="8.5" fill="#dcfce7">• HPA co giãn 1-5 pods khi CPU &gt; 70% • PDB</text>
+        </g>
+
+        <g transform="translate(10, 110)">
+          <!-- Cart & Redis -->
+          <rect width="265" height="52" rx="5" fill="#0f172a" stroke="#38bdf8" stroke-width="0.8"/>
+          <text x="8" y="15" font-size="9.5" font-weight="700" fill="#7dd3fc">• cartservice (HPA 1-3 pods, PDB)</text>
+          <text x="8" y="29" font-size="9.5" font-weight="700" fill="#7dd3fc">• redis-cart (Cache giỏ hàng)</text>
+          <text x="8" y="43" font-size="8" fill="#94a3b8">Chính sách NetPol: Chỉ nhận từ Frontend &amp; Checkout</text>
+        </g>
+
+        <g transform="translate(10, 168)">
+          <!-- Paymentservice Zero-Trust -->
+          <rect width="265" height="56" rx="5" fill="#3b0764" stroke="#c084fc" stroke-width="1"/>
+          <text x="8" y="15" font-size="9.5" font-weight="800" fill="#f0abfc">🔒 paymentservice (Zero-Trust Lock)</text>
+          <text x="8" y="29" font-size="8.5" fill="#fae8ff">• Ingress: CHỈ nhận từ checkoutservice:50051</text>
+          <text x="8" y="43" font-size="8.5" fill="#fae8ff">• Egress: CHỈ cho phép CoreDNS:53</text>
+          <text x="8" y="53" font-size="7.5" fill="#e9d5ff">Triệt tiêu rò rỉ dữ liệu thẻ thanh toán</text>
+        </g>
+
+        <g transform="translate(10, 230)">
+          <!-- Other Services -->
+          <rect width="265" height="74" rx="5" fill="#0f172a" stroke="#334155" stroke-width="0.8"/>
+          <text x="8" y="15" font-size="9" font-weight="700" fill="#e2e8f0">• productcatalogservice (Cổng 3550)</text>
+          <text x="8" y="29" font-size="9" font-weight="700" fill="#e2e8f0">• recommendationservice (Cổng 8080)</text>
+          <text x="8" y="43" font-size="9" font-weight="700" fill="#e2e8f0">• shippingservice (Cổng 50051)</text>
+          <text x="8" y="57" font-size="9" font-weight="700" fill="#e2e8f0">• adservice (Quảng cáo gRPC 9555)</text>
+          <text x="8" y="69" font-size="8" font-family="monospace" fill="#38bdf8">Flannel Pod CIDR: 10.244.2.0/24</text>
+        </g>
+
+        <g transform="translate(10, 310)">
+          <!-- Node Specs -->
+          <rect width="265" height="42" rx="4" fill="#0b1329" stroke="#1e293b" stroke-width="1"/>
+          <text x="8" y="15" font-size="8.5" fill="#94a3b8">Kubelet, Kube-proxy, Containerd v2.2.1</text>
+          <text x="8" y="28" font-size="8" font-family="monospace" fill="#38bdf8">EBS KMS Encrypted • IMDSv2 Enforced</text>
+          <text x="8" y="38" font-size="7.5" fill="#22c55e">Def GW: 10.0.10.254 qua ENI LAN Gateway</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- ──────────────── AZ-B (Right Half): Worker 2 (Multi-AZ DR) ──────────────── -->
+    <g transform="translate(860, 215)">
+      <!-- AZ Container -->
+      <rect width="505" height="425" rx="10" fill="url(#grad-az-b)" stroke="#4f46e5" stroke-width="1.4"/>
+      
+      <!-- AZ-b Header Banner -->
+      <rect x="15" y="-10" width="360" height="22" rx="4" fill="#4338ca"/>
+      <text x="25" y="5" font-size="10" font-weight="900" fill="#ffffff" letter-spacing="0.5">
+        AWS AVAILABILITY ZONE B: ap-southeast-1b
+      </text>
+
+      <g transform="translate(15, 20)">
+        <rect width="475" height="22" rx="4" fill="#0f172a" stroke="#6366f1" stroke-width="1"/>
+        <text x="10" y="15" font-size="9" font-family="monospace" fill="#c7d2fe">
+          Subnet: 10.0.11.0/24 (Private) • Route: [0.0.0.0/0 → 10.0.10.254 (Cross-AZ LAN)]
+        </text>
+      </g>
+
+      <!-- ── WORKER NODE 2 CARD ── -->
+      <g transform="translate(15, 52)">
+        <rect width="475" height="215" rx="8" fill="url(#grad-worker)" stroke="#6366f1" stroke-width="1.2" filter="url(#shadow-card)"/>
+        
+        <g transform="translate(12, 12)">
+          <rect width="28" height="28" rx="6" fill="#4f46e5"/>
+          <text x="14" y="20" font-size="14" fill="#ffffff" text-anchor="middle">📦</text>
+          <text x="36" y="15" font-size="11.5" font-weight="800" fill="#ffffff">k8s-worker-2 (Multi-AZ Disaster Resilience)</text>
+          <text x="36" y="27" font-size="9" font-family="monospace" fill="#a5b4fc">IP: 10.0.11.21 • EC2: t3.small (2 vCPU, 2GB RAM, IMDSv2)</text>
+        </g>
+        
+        <line x1="12" y1="46" x2="463" y2="46" stroke="#1f2747" stroke-width="1"/>
+
+        <!-- Workloads Grid in Worker 2 -->
+        <g transform="translate(10, 52)">
+          <!-- CheckoutService -->
+          <rect width="220" height="70" rx="5" fill="#1e1b4b" stroke="#818cf8" stroke-width="1"/>
+          <text x="8" y="16" font-size="9.5" font-weight="800" fill="#c7d2fe">★ checkoutservice (Giao dịch)</text>
+          <text x="8" y="32" font-size="8.5" fill="#e0e7ff">• HPA co giãn 1-3 pods khi CPU &gt; 75%</text>
+          <text x="8" y="46" font-size="8.5" fill="#e0e7ff">• PodDisruptionBudget (PDB) minAvailable: 1</text>
+          <text x="8" y="60" font-size="8" fill="#a5b4fc">• Port 5050 gRPC Core Checkout</text>
+        </g>
+
+        <g transform="translate(240, 52)">
+          <!-- Other Services in AZ-B -->
+          <rect width="225" height="70" rx="5" fill="#0f172a" stroke="#475569" stroke-width="0.8"/>
+          <text x="8" y="16" font-size="9.5" font-weight="700" fill="#e2e8f0">• currencyservice (Tỷ giá tiền tệ)</text>
+          <text x="8" y="32" font-size="9.5" font-weight="700" fill="#e2e8f0">• emailservice (Gửi hóa đơn mua)</text>
+          <text x="8" y="46" font-size="9.5" font-weight="700" fill="#fbbf24">• loadgenerator (Locust Simulator)</text>
+          <text x="8" y="60" font-size="8" font-family="monospace" fill="#818cf8">Pod Subnet: 10.244.1.0/24</text>
+        </g>
+
+        <!-- Multi-AZ Flannel VXLAN Ribbon -->
+        <g transform="translate(10, 130)">
+          <rect width="455" height="75" rx="5" fill="#0c1322" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="12" y="18" font-size="9.5" font-weight="800" fill="#60a5fa">🌐 Flannel VXLAN Overlay Network (10.244.0.0/16)</text>
+          <text x="12" y="34" font-size="8.5" fill="#cbd5e1">• Tạo đường hầm đóng gói VXLAN qua UDP 8472 kết nối xuyên 2 AZ</text>
+          <text x="12" y="48" font-size="8.5" fill="#cbd5e1">• Giao tiếp Pod-to-Pod trong suốt: Frontend (AZ-a) ↔ CheckoutService (AZ-b)</text>
+          <text x="12" y="62" font-size="8.5" fill="#22c55e">✔ Đảm bảo ứng dụng tiếp tục chạy nếu toàn bộ AZ-a gặp sự cố gián đoạn</text>
+        </g>
+      </g>
+
+      <!-- ── ZERO-TRUST & GOVERNANCE CONTROLS CARD ── -->
+      <g transform="translate(15, 275)">
+        <rect width="475" height="130" rx="8" fill="#111827" stroke="#059669" stroke-width="1.2" filter="url(#shadow-card)"/>
+        
+        <text x="15" y="20" font-size="10.5" font-weight="800" fill="#34d399">🛡 CHÍNH SÁCH BẢO MẬT ZERO-TRUST &amp; GOVERNANCE (CIS K8s)</text>
+        <line x1="12" y1="28" x2="463" y2="28" stroke="#064e3b" stroke-width="1"/>
+
+        <g transform="translate(12, 36)">
+          <text x="0" y="12" font-size="8.5" fill="#a7f3d0"><tspan font-weight="bold">• Default-Deny Ingress:</tspan> Toàn bộ traffic giữa các Pod bị khóa mặc định</text>
+          <text x="0" y="26" font-size="8.5" fill="#a7f3d0"><tspan font-weight="bold">• Microservice Whitelist:</tspan> Chỉ các dịch vụ được khai báo mới kết nối được nhau</text>
+          <text x="0" y="40" font-size="8.5" fill="#a7f3d0"><tspan font-weight="bold">• ResourceQuota (online-boutique):</tspan> Max 4 CPU req, 8 CPU limit, 12Gi RAM, 30 Pods</text>
+          <text x="0" y="54" font-size="8.5" fill="#a7f3d0"><tspan font-weight="bold">• LimitRange:</tspan> Tự động gán default requests/limits cho mọi container mới</text>
+          <text x="0" y="68" font-size="8.5" fill="#a7f3d0"><tspan font-weight="bold">• PodDisruptionBudget (PDB):</tspan> Bảo đảm minAvailable: 1 cho Frontend, Cart, Checkout</text>
+          <text x="0" y="82" font-size="8.5" fill="#f59e0b"><tspan font-weight="bold">• IMDSv2 Enforced &amp; KMS EBS:</tspan> Triệt tiêu SSRF và bảo mật dữ liệu nghỉ (at-rest)</text>
+        </g>
       </g>
     </g>
   </g>
 
-  <!-- Line connecting Internet to pfSense WAN -->
-  <path d="M 600 105 L 600 130" fill="none" stroke="#0284c7" stroke-width="3"/>
-  <polygon points="600,132 596,124 604,124" fill="#0284c7"/>
+  <!-- ================= BOTTOM SECTION: SUMMARY TABLES ================= -->
+  <g transform="translate(25, 855)">
+    <!-- Table 1: Port Mapping & Routing Matrix -->
+    <g transform="translate(0, 0)">
+      <rect width="685" height="150" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.2" filter="url(#shadow-card)"/>
+      <rect x="0" y="0" width="685" height="26" rx="8" fill="#1e293b"/>
+      <text x="15" y="18" font-size="10.5" font-weight="800" fill="#38bdf8">BẢNG ĐIỀU PHỐI CỔNG &amp; NAT TRAFFIC MATRIX (AWS GATEWAY → K8S CLUSTER)</text>
+      
+      <!-- Table rows -->
+      <g transform="translate(15, 36)">
+        <text x="0" y="8" font-size="9" font-weight="700" fill="#94a3b8">DỊCH VỤ</text>
+        <text x="120" y="8" font-size="9" font-weight="700" fill="#94a3b8">PORT WAN</text>
+        <text x="210" y="8" font-size="9" font-weight="700" fill="#94a3b8">ĐÍCH NỘI BỘ (DNAT)</text>
+        <text x="390" y="8" font-size="9" font-weight="700" fill="#94a3b8">KIỂM TRA BẢO MẬT &amp; IDS/IPS</text>
+        
+        <line x1="0" y1="14" x2="655" y2="14" stroke="#334155" stroke-width="1"/>
+        
+        <!-- Row 1 -->
+        <text x="0" y="27" font-size="9" font-weight="700" fill="#4ade80">Online Boutique</text>
+        <text x="120" y="27" font-size="9" font-family="monospace" fill="#f8fafc">TCP 80</text>
+        <text x="210" y="27" font-size="9" font-family="monospace" fill="#60a5fa">10.0.10.10:80 (Ingress NGINX)</text>
+        <text x="390" y="27" font-size="8.5" fill="#cbd5e1">Suricata quét SQLi, XSS, Path Traversal</text>
 
-  <!-- ================= MIDDLE SECTION: 3 NETWORK ZONES ================= -->
-  
-  <!-- Zone 1: Subnet K8s Master & Worker 1 AZ-a -->
-  <g transform="translate(40, 270)">
-    <rect width="360" height="315" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" filter="url(#card-shadow)"/>
-    
-    <!-- Zone Header -->
-    <rect x="0" y="0" width="360" height="36" rx="10" fill="#e2e8f0"/>
-    <circle cx="20" cy="18" r="5" fill="#3b82f6"/>
-    <text x="35" y="22" font-size="11" font-weight="bold" fill="#0f172a">VLAN10 - K8S MASTER &amp; WORKER 1</text>
-    <rect x="265" y="8" width="85" height="20" rx="4" fill="#dbeafe"/>
-    <text x="307" y="22" font-size="9.5" font-family="monospace" font-weight="bold" fill="#1d4ed8" text-anchor="middle">10.0.10.0/24</text>
+        <!-- Row 2 -->
+        <text x="0" y="42" font-size="9" font-weight="700" fill="#38bdf8">Rancher Server</text>
+        <text x="120" y="42" font-size="9" font-family="monospace" fill="#f8fafc">TCP 7443</text>
+        <text x="210" y="42" font-size="9" font-family="monospace" fill="#60a5fa">10.0.10.10:30443 (NodePort)</text>
+        <text x="390" y="42" font-size="8.5" fill="#cbd5e1">TLS Passthrough, Web UI quản trị K8s</text>
 
-    <!-- Master Node Card -->
-    <g transform="translate(15, 48)">
-      <rect width="330" height="118" rx="8" fill="#ffffff" stroke="#bfdbfe" stroke-width="1.2" filter="url(#card-shadow)"/>
-      <rect x="10" y="10" width="28" height="28" rx="6" fill="#2563eb"/>
-      <!-- Server Icon -->
-      <path d="M16 20 h16 v2 h-16 z M16 24 h16 v2 h-16 z M16 28 h16 v2 h-16 z" fill="#ffffff"/>
-      <text x="46" y="22" font-size="11.5" font-weight="bold" fill="#1e3a8a">K8s Master (Control-Plane)</text>
-      <text x="46" y="34" font-size="9.5" font-family="monospace" fill="#2563eb">IP: 10.0.10.10 • GW: 10.0.10.254</text>
-      <rect x="245" y="10" width="75" height="18" rx="4" fill="#f1f5f9"/>
-      <text x="282" y="22" font-size="8.5" font-family="monospace" fill="#475569" text-anchor="middle">c7i-flex.large</text>
+        <!-- Row 3 -->
+        <text x="0" y="57" font-size="9" font-weight="700" fill="#c084fc">Wazuh SIEM</text>
+        <text x="120" y="57" font-size="9" font-family="monospace" fill="#f8fafc">TCP 8443</text>
+        <text x="210" y="57" font-size="9" font-family="monospace" fill="#60a5fa">10.0.10.10:9443 (Dashboard)</text>
+        <text x="390" y="57" font-size="8.5" fill="#cbd5e1">HTTPS SOC Dashboard + Agent port 1514/1515</text>
 
-      <line x1="10" y1="46" x2="320" y2="46" stroke="#f1f5f9" stroke-width="1"/>
-      <text x="12" y="62" font-size="9" fill="#334155"><tspan font-weight="bold">• Upstream K8s v1.31.14:</tspan> Kubeadm, etcd, containerd v2.2.1</text>
-      <text x="12" y="78" font-size="9" fill="#334155"><tspan font-weight="bold">• Ingress-NGINX:</tspan> Baremetal Controller (Port 80/443)</text>
-      <text x="12" y="94" font-size="9" fill="#334155"><tspan font-weight="bold">• Audit Logging:</tspan> /var/log/kubernetes/audit.log</text>
-      <text x="12" y="110" font-size="8.5" fill="#64748b">• CoreDNS &amp; Metrics-Server (Thu thập CPU/RAM)</text>
+        <!-- Row 4 -->
+        <text x="0" y="72" font-size="9" font-weight="700" fill="#fbbf24">SSH Bastion</text>
+        <text x="120" y="72" font-size="9" font-family="monospace" fill="#f8fafc">TCP 22</text>
+        <text x="210" y="72" font-size="9" font-family="monospace" fill="#60a5fa">Gateway Local → ProxyJump</text>
+        <text x="390" y="72" font-size="8.5" fill="#cbd5e1">Khóa RSA 2048-bit, cấm password login</text>
+      </g>
+
+      <!-- Bottom Status Chip Table 1 -->
+      <g transform="translate(15, 116)">
+        <rect width="655" height="24" rx="4" fill="#0b1329" stroke="#10b981" stroke-width="1"/>
+        <text x="327" y="16" font-size="9" font-weight="bold" fill="#34d399" text-anchor="middle">
+          ✔ MỌI TRUY CẬP VÀO CỤM BẮT BUỘC ĐI QUA TƯỜNG LỬA PFSENSE GATEWAY (PORT 80, 7443, 8443, 22)
+        </text>
+      </g>
     </g>
 
-    <!-- Worker 1 Node Card -->
-    <g transform="translate(15, 174)">
-      <rect width="330" height="98" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#card-shadow)"/>
-      <rect x="10" y="10" width="28" height="28" rx="6" fill="#0284c7"/>
-      <path d="M16 20 h16 v2 h-16 z M16 24 h16 v2 h-16 z" fill="#ffffff"/>
-      <text x="46" y="22" font-size="11.5" font-weight="bold" fill="#0f172a">K8s Worker Node 1</text>
-      <text x="46" y="34" font-size="9.5" font-family="monospace" fill="#0284c7">IP: 10.0.10.71 • GW: 10.0.10.254</text>
-      <rect x="255" y="10" width="65" height="18" rx="4" fill="#f1f5f9"/>
-      <text x="287" y="22" font-size="8.5" font-family="monospace" fill="#475569" text-anchor="middle">t3.small</text>
+    <!-- Table 2: Cloud Resources & vCPU Quota Optimization -->
+    <g transform="translate(705, 0)">
+      <rect width="685" height="150" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.2" filter="url(#shadow-card)"/>
+      <rect x="0" y="0" width="685" height="26" rx="8" fill="#1e293b"/>
+      <text x="15" y="18" font-size="10.5" font-weight="800" fill="#34d399">TỔNG HỢP TÀI NGUYÊN AWS CLOUD &amp; TỐI ƯU HÓA ĐỊNH MỨC 8.0 vCPUS</text>
+      
+      <g transform="translate(15, 36)">
+        <text x="0" y="8" font-size="9" font-weight="700" fill="#94a3b8">MÁY CHỦ EC2</text>
+        <text x="130" y="8" font-size="9" font-weight="700" fill="#94a3b8">INSTANCE TYPE</text>
+        <text x="240" y="8" font-size="9" font-weight="700" fill="#94a3b8">vCPU / RAM</text>
+        <text x="330" y="8" font-size="9" font-weight="700" fill="#94a3b8">VAI TRÒ / NHIỆM VỤ CHÍNH</text>
+        
+        <line x1="0" y1="14" x2="655" y2="14" stroke="#334155" stroke-width="1"/>
+        
+        <!-- Row 1 -->
+        <text x="0" y="27" font-size="9" font-weight="700" fill="#f8fafc">pfsense-gateway</text>
+        <text x="130" y="27" font-size="9" font-family="monospace" fill="#93c5fd">t3.small</text>
+        <text x="240" y="27" font-size="9" font-family="monospace" fill="#22c55e">2 vCPU / 2 GB</text>
+        <text x="330" y="27" font-size="8.5" fill="#cbd5e1">Chốt chặn biên WAN, Suricata IDS/IPS, NAT</text>
 
-      <line x1="10" y1="46" x2="320" y2="46" stroke="#f1f5f9" stroke-width="1"/>
-      <text x="12" y="62" font-size="9" fill="#334155"><tspan font-weight="bold">• Frontend Service:</tspan> Web UI (Auto-scaling HPA)</text>
-      <text x="12" y="76" font-size="9" fill="#334155"><tspan font-weight="bold">• Microservices:</tspan> CartService (HPA), Redis-Cart, ProductCatalog</text>
-      <text x="12" y="90" font-size="9" fill="#334155"><tspan font-weight="bold">• Payment &amp; AdService:</tspan> gRPC Internal Workloads</text>
-    </g>
+        <!-- Row 2 -->
+        <text x="0" y="42" font-size="9" font-weight="700" fill="#f8fafc">k8s-master</text>
+        <text x="130" y="42" font-size="9" font-family="monospace" fill="#93c5fd">c7i-flex.large</text>
+        <text x="240" y="42" font-size="9" font-family="monospace" fill="#22c55e">2 vCPU / 8 GB</text>
+        <text x="330" y="42" font-size="8.5" fill="#cbd5e1">Control Plane, Rancher Manager, Wazuh SIEM All-in-One</text>
 
-    <text x="180" y="300" font-size="9.5" font-weight="bold" fill="#2563eb" text-anchor="middle">Availability Zone: ap-southeast-1a (Singapore)</text>
-  </g>
+        <!-- Row 3 -->
+        <text x="0" y="57" font-size="9" font-weight="700" fill="#f8fafc">k8s-worker-1</text>
+        <text x="130" y="57" font-size="9" font-family="monospace" fill="#93c5fd">t3.small</text>
+        <text x="240" y="57" font-size="9" font-family="monospace" fill="#22c55e">2 vCPU / 2 GB</text>
+        <text x="330" y="57" font-size="8.5" fill="#cbd5e1">Worker Node AZ-a: Frontend, Cart, Payment, Redis</text>
 
-  <!-- Zone 2: Subnet K8s Worker 2 AZ-b -->
-  <g transform="translate(420, 270)">
-    <rect width="360" height="315" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" filter="url(#card-shadow)"/>
-    
-    <!-- Zone Header -->
-    <rect x="0" y="0" width="360" height="36" rx="10" fill="#e2e8f0"/>
-    <circle cx="20" cy="18" r="5" fill="#6366f1"/>
-    <text x="35" y="22" font-size="11" font-weight="bold" fill="#0f172a">VLAN20 - K8S WORKER 2 (MULTI-AZ)</text>
-    <rect x="265" y="8" width="85" height="20" rx="4" fill="#e0e7ff"/>
-    <text x="307" y="22" font-size="9.5" font-family="monospace" font-weight="bold" fill="#4338ca" text-anchor="middle">10.0.11.0/24</text>
+        <!-- Row 4 -->
+        <text x="0" y="72" font-size="9" font-weight="700" fill="#f8fafc">k8s-worker-2</text>
+        <text x="130" y="72" font-size="9" font-family="monospace" fill="#93c5fd">t3.small</text>
+        <text x="240" y="72" font-size="9" font-family="monospace" fill="#22c55e">2 vCPU / 2 GB</text>
+        <text x="330" y="72" font-size="8.5" fill="#cbd5e1">Worker Node AZ-b: Checkout, Currency, LoadGenerator</text>
+      </g>
 
-    <!-- Worker 2 Node Card -->
-    <g transform="translate(15, 48)">
-      <rect width="330" height="118" rx="8" fill="#ffffff" stroke="#c7d2fe" stroke-width="1.2" filter="url(#card-shadow)"/>
-      <rect x="10" y="10" width="28" height="28" rx="6" fill="#4f46e5"/>
-      <path d="M16 20 h16 v2 h-16 z M16 24 h16 v2 h-16 z" fill="#ffffff"/>
-      <text x="46" y="22" font-size="11.5" font-weight="bold" fill="#312e81">K8s Worker Node 2</text>
-      <text x="46" y="34" font-size="9.5" font-family="monospace" fill="#4f46e5">IP: 10.0.11.22 • GW: 10.0.10.254</text>
-      <rect x="255" y="10" width="65" height="18" rx="4" fill="#f1f5f9"/>
-      <text x="287" y="22" font-size="8.5" font-family="monospace" fill="#475569" text-anchor="middle">t3.small</text>
-
-      <line x1="10" y1="46" x2="320" y2="46" stroke="#f1f5f9" stroke-width="1"/>
-      <text x="12" y="62" font-size="9" fill="#334155"><tspan font-weight="bold">• CheckoutService:</tspan> Xử lý giao dịch gRPC (HPA 1-3 pods)</text>
-      <text x="12" y="78" font-size="9" fill="#334155"><tspan font-weight="bold">• Microservices:</tspan> CurrencyService, Shipping, Email, Recommendation</text>
-      <text x="12" y="94" font-size="9" fill="#334155"><tspan font-weight="bold">• LoadGenerator:</tspan> Bộ giả lập lưu lượng người dùng (Locust)</text>
-      <text x="12" y="110" font-size="8.5" fill="#64748b">• Flannel VXLAN Endpoint (10.244.2.0/24 overlay)</text>
-    </g>
-
-    <!-- Zero-Trust & HPA Box -->
-    <g transform="translate(15, 174)">
-      <rect width="330" height="98" rx="8" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="1" filter="url(#card-shadow)"/>
-      <text x="15" y="20" font-size="10" font-weight="bold" fill="#5b21b6">★ Zero-Trust &amp; Horizontal Pod Autoscaling</text>
-      <line x1="10" y1="28" x2="320" y2="28" stroke="#ede9fe" stroke-width="1"/>
-      <text x="12" y="44" font-size="9" fill="#4c1d95">• Default-Deny: Chặn truy cập trái phép giữa các namespace</text>
-      <text x="12" y="58" font-size="9" fill="#4c1d95">• HPA Controller: Tự co giãn Frontend/Cart/Checkout khi tải &gt;70%</text>
-      <text x="12" y="72" font-size="9" fill="#4c1d95">• Flannel CNI: Đường hầm VXLAN kết nối an toàn xuyên 2 AZ</text>
-      <text x="12" y="86" font-size="9" fill="#4c1d95">• Multi-AZ High Availability: Khả năng chống chịu lỗi trung tâm dữ liệu</text>
-    </g>
-
-    <text x="180" y="300" font-size="9.5" font-weight="bold" fill="#4f46e5" text-anchor="middle">Availability Zone: ap-southeast-1b (Dự phòng thảm họa)</text>
-  </g>
-
-  <!-- Zone 3: Security & Management (Wazuh SIEM / Ansible) -->
-  <g transform="translate(800, 270)">
-    <rect width="360" height="315" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" filter="url(#card-shadow)"/>
-    
-    <!-- Zone Header -->
-    <rect x="0" y="0" width="360" height="36" rx="10" fill="#e2e8f0"/>
-    <circle cx="20" cy="18" r="5" fill="#a855f7"/>
-    <text x="35" y="22" font-size="11" font-weight="bold" fill="#0f172a">VLAN30 - SECURITY &amp; SIEM MANAGEMENT</text>
-    <rect x="265" y="8" width="85" height="20" rx="4" fill="#f3e8ff"/>
-    <text x="307" y="22" font-size="9.5" font-family="monospace" font-weight="bold" fill="#7e22ce" text-anchor="middle">10.0.20.0/24</text>
-
-    <!-- Wazuh SIEM Card -->
-    <g transform="translate(15, 48)">
-      <rect width="330" height="118" rx="8" fill="#ffffff" stroke="#e9d5ff" stroke-width="1.2" filter="url(#card-shadow)"/>
-      <rect x="10" y="10" width="28" height="28" rx="6" fill="#9333ea"/>
-      <path d="M16 20 h16 v2 h-16 z M16 24 h16 v2 h-16 z" fill="#ffffff"/>
-      <text x="46" y="22" font-size="11.5" font-weight="bold" fill="#581c87">Wazuh SIEM Server</text>
-      <text x="46" y="34" font-size="9.5" font-family="monospace" fill="#9333ea">IP: 10.0.20.10 • Port: 1514/1515, 443</text>
-      <rect x="255" y="10" width="65" height="18" rx="4" fill="#f1f5f9"/>
-      <text x="287" y="22" font-size="8.5" font-family="monospace" fill="#475569" text-anchor="middle">t3.small</text>
-
-      <line x1="10" y1="46" x2="320" y2="46" stroke="#f1f5f9" stroke-width="1"/>
-      <text x="12" y="62" font-size="9" fill="#334155"><tspan font-weight="bold">• Thu thập Log tập trung:</tspan> Suricata EVE + K8s Audit + Syslog</text>
-      <text x="12" y="78" font-size="9" fill="#334155"><tspan font-weight="bold">• Tương quan sự kiện an ninh:</tspan> Phân tích đe dọa (MITRE ATT&amp;CK)</text>
-      <text x="12" y="94" font-size="9" fill="#334155"><tspan font-weight="bold">• Cảnh báo xâm nhập:</tspan> Báo động SQLi, XSS, Scan port, Brute-force</text>
-      <text x="12" y="110" font-size="8.5" fill="#64748b">• Wazuh Indexer &amp; OpenSearch Security Dashboard</text>
-    </g>
-
-    <!-- Ansible Controller Card -->
-    <g transform="translate(15, 174)">
-      <rect width="330" height="98" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#card-shadow)"/>
-      <rect x="10" y="10" width="28" height="28" rx="6" fill="#0f172a"/>
-      <text x="24" y="29" font-size="15" font-weight="900" fill="#ffffff" text-anchor="middle">A</text>
-      <text x="46" y="22" font-size="11.5" font-weight="bold" fill="#0f172a">Ansible Automation Controller</text>
-      <text x="46" y="34" font-size="9.5" font-family="monospace" fill="#475569">Playbooks &amp; Configuration Management</text>
-      <rect x="255" y="10" width="65" height="18" rx="4" fill="#f1f5f9"/>
-      <text x="287" y="22" font-size="8.5" font-family="monospace" fill="#475569" text-anchor="middle">IaC / Config</text>
-
-      <line x1="10" y1="46" x2="320" y2="46" stroke="#f1f5f9" stroke-width="1"/>
-      <text x="12" y="62" font-size="9" fill="#334155"><tspan font-weight="bold">• Kubeadm Provisioning:</tspan> Tự động bootstrap Master &amp; join Workers</text>
-      <text x="12" y="76" font-size="9" fill="#334155"><tspan font-weight="bold">• Security Hardening:</tspan> Sysctl, swap off/file, SSH security</text>
-      <text x="12" y="90" font-size="9" fill="#334155"><tspan font-weight="bold">• Triển khai Manifests:</tspan> Ingress, Online Boutique, HPA, NetPol</text>
-    </g>
-
-    <text x="180" y="300" font-size="9.5" font-weight="bold" fill="#9333ea" text-anchor="middle">Subnet Giám Sát An Ninh Tập Trung (SIEM)</text>
-  </g>
-
-  <!-- Connectors from pfSense to 3 Zones -->
-  <path d="M 330 250 L 330 270" fill="none" stroke="#3b82f6" stroke-width="2.5"/>
-  <polygon points="330,272 326,264 334,264" fill="#3b82f6"/>
-
-  <path d="M 600 250 L 600 270" fill="none" stroke="#6366f1" stroke-width="2.5"/>
-  <polygon points="600,272 596,264 604,264" fill="#6366f1"/>
-
-  <path d="M 980 250 L 980 270" fill="none" stroke="#a855f7" stroke-width="2.5"/>
-  <polygon points="980,272 976,264 984,264" fill="#a855f7"/>
-
-  <!-- ================= LOWER SECTION: IP TABLE & FIREWALL RULES ================= -->
-  
-  <!-- IP Planning Table (Left) -->
-  <g transform="translate(40, 605)">
-    <rect width="550" height="135" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" filter="url(#card-shadow)"/>
-    <text x="15" y="20" font-size="11" font-weight="bold" fill="#0f172a">BẢNG PHÂN HOẠCH IP / VÙNG MẠNG (IP ADDRESS PLANNING)</text>
-    
-    <!-- Table Header -->
-    <rect x="10" y="30" width="530" height="20" fill="#f1f5f9"/>
-    <text x="20" y="44" font-size="9" font-weight="bold" fill="#475569">VÙNG MẠNG</text>
-    <text x="120" y="44" font-size="9" font-weight="bold" fill="#475569">DẢI CIDR</text>
-    <text x="230" y="44" font-size="9" font-weight="bold" fill="#475569">GATEWAY</text>
-    <text x="340" y="44" font-size="9" font-weight="bold" fill="#475569">THÀNH PHẦN / MÁY CHỦ THỰC TẾ</text>
-
-    <!-- Row 1 -->
-    <text x="20" y="65" font-size="9" font-weight="bold" fill="#dc2626">WAN (Public)</text>
-    <text x="120" y="65" font-size="9" font-family="monospace" fill="#334155">10.0.1.0/24</text>
-    <text x="230" y="65" font-size="9" font-family="monospace" fill="#334155">AWS IGW</text>
-    <text x="340" y="65" font-size="9" fill="#334155">pfSense WAN (10.0.1.8 / EIP 13.228.8.81)</text>
-
-    <!-- Row 2 -->
-    <line x1="10" y1="72" x2="540" y2="72" stroke="#f1f5f9" stroke-width="1"/>
-    <text x="20" y="86" font-size="9" font-weight="bold" fill="#2563eb">K8s-A (Private)</text>
-    <text x="120" y="86" font-size="9" font-family="monospace" fill="#334155">10.0.10.0/24</text>
-    <text x="230" y="86" font-size="9" font-family="monospace" fill="#334155">10.0.10.254</text>
-    <text x="340" y="86" font-size="9" fill="#334155">Master (10.0.10.10), Worker 1 (10.0.10.71)</text>
-
-    <!-- Row 3 -->
-    <line x1="10" y1="93" x2="540" y2="93" stroke="#f1f5f9" stroke-width="1"/>
-    <text x="20" y="107" font-size="9" font-weight="bold" fill="#4f46e5">K8s-B (Private)</text>
-    <text x="120" y="107" font-size="9" font-family="monospace" fill="#334155">10.0.11.0/24</text>
-    <text x="230" y="107" font-size="9" font-family="monospace" fill="#334155">10.0.10.254</text>
-    <text x="340" y="107" font-size="9" fill="#334155">K8s Worker Node 2 (10.0.11.22)</text>
-
-    <!-- Row 4 -->
-    <line x1="10" y1="114" x2="540" y2="114" stroke="#f1f5f9" stroke-width="1"/>
-    <text x="20" y="128" font-size="9" font-weight="bold" fill="#9333ea">MGMT / SIEM</text>
-    <text x="120" y="128" font-size="9" font-family="monospace" fill="#334155">10.0.20.0/24</text>
-    <text x="230" y="128" font-size="9" font-family="monospace" fill="#334155">AWS IGW / LAN</text>
-    <text x="340" y="128" font-size="9" fill="#334155">Wazuh SIEM Server (10.0.20.10) &amp; Ansible Host</text>
-  </g>
-
-  <!-- Firewall & Security Rules (Right) -->
-  <g transform="translate(610, 605)">
-    <rect width="550" height="135" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" filter="url(#card-shadow)"/>
-    <text x="15" y="20" font-size="11" font-weight="bold" fill="#0f172a">QUY TẮC FIREWALL CHÍNH (TÓM TẮT &amp; CHÍNH SÁCH BẢO MẬT)</text>
-    
-    <text x="20" y="42" font-size="9" fill="#16a34a" font-weight="bold">✔</text>
-    <text x="35" y="42" font-size="9" fill="#334155"><tspan font-weight="bold">Cho phép Ingress Web:</tspan> WAN -&gt; DNAT Port 80 -&gt; Ingress NGINX (10.0.10.10:80).</text>
-
-    <text x="20" y="60" font-size="9" fill="#16a34a" font-weight="bold">✔</text>
-    <text x="35" y="60" font-size="9" fill="#334155"><tspan font-weight="bold">Cho phép LAN Outbound:</tspan> Các máy chủ K8s ra Internet qua Gateway NAT để kéo container images.</text>
-
-    <text x="20" y="78" font-size="9" fill="#16a34a" font-weight="bold">✔</text>
-    <text x="35" y="78" font-size="9" fill="#334155"><tspan font-weight="bold">Suricata IDS/IPS Inspection:</tspan> Quét sâu gói tin HTTP/TCP, phát hiện tấn công SQLi, XSS, quét port.</text>
-
-    <text x="20" y="96" font-size="9" fill="#dc2626" font-weight="bold">✖</text>
-    <text x="35" y="96" font-size="9" fill="#334155"><tspan font-weight="bold">Chặn Internet -&gt; LAN Trực Tiếp:</tspan> Cấm truy cập trực tiếp vào K8s Nodes từ ngoài (chỉ SSH qua ProxyJump).</text>
-
-    <text x="20" y="114" font-size="9" fill="#9333ea" font-weight="bold">★</text>
-    <text x="35" y="114" font-size="9" fill="#334155"><tspan font-weight="bold">Giám sát An ninh SIEM:</tspan> Thu thập và tương quan toàn bộ log kiểm toán K8s &amp; cảnh báo Suricata.</text>
-  </g>
-
-  <!-- ================= BOTTOM SECTION: TRAFFIC FLOWS (LUỒNG KẾT NỐI) ================= -->
-  <g transform="translate(40, 755)">
-    <rect width="1120" height="52" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
-    
-    <!-- Flow 1 -->
-    <g transform="translate(15, 12)">
-      <circle cx="12" cy="14" r="10" fill="#16a34a"/>
-      <text x="12" y="18" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">1</text>
-      <text x="30" y="12" font-size="9" font-weight="bold" fill="#0f172a">Khách hàng Web:</text>
-      <text x="30" y="24" font-size="8.5" fill="#475569">Client -&gt; Internet -&gt; Gateway (DNAT:80) -&gt; Ingress NGINX -&gt; Frontend Boutique</text>
-    </g>
-
-    <!-- Flow 2 -->
-    <g transform="translate(300, 12)">
-      <circle cx="12" cy="14" r="10" fill="#4f46e5"/>
-      <text x="12" y="18" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">2</text>
-      <text x="30" y="12" font-size="9" font-weight="bold" fill="#0f172a">Quản trị CLI SSH:</text>
-      <text x="30" y="24" font-size="8.5" fill="#475569">Admin -&gt; SSH Gateway Bastion (Port 22) -&gt; ProxyJump sang K8s Master (10.0.10.10)</text>
-    </g>
-
-    <!-- Flow 3 -->
-    <g transform="translate(585, 12)">
-      <circle cx="12" cy="14" r="10" fill="#2563eb"/>
-      <text x="12" y="18" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">3</text>
-      <text x="30" y="12" font-size="9" font-weight="bold" fill="#0f172a">Pod-to-Pod Cross-AZ:</text>
-      <text x="30" y="24" font-size="8.5" fill="#475569">Frontend (AZ-a) &lt;--Flannel VXLAN (10.244.0.0/16)--&gt; CheckoutService (AZ-b)</text>
-    </g>
-
-    <!-- Flow 4 -->
-    <g transform="translate(870, 12)">
-      <circle cx="12" cy="14" r="10" fill="#9333ea"/>
-      <text x="12" y="18" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">4</text>
-      <text x="30" y="12" font-size="9" font-weight="bold" fill="#0f172a">Luồng Giám Sát SIEM:</text>
-      <text x="30" y="24" font-size="8.5" fill="#475569">Suricata + K8s Audit Logs -&gt; Wazuh Agent -&gt; Wazuh SIEM Server</text>
+      <!-- Bottom Status Chip Table 2 -->
+      <g transform="translate(15, 116)">
+        <rect width="655" height="24" rx="4" fill="#0b1329" stroke="#0284c7" stroke-width="1"/>
+        <text x="327" y="16" font-size="9" font-weight="bold" fill="#38bdf8" text-anchor="middle">
+          ★ TỔNG CỘNG: 4 MÁY CHỦ = ĐÚNG 8.0 vCPUs (100% ĐẠT ĐỊNH MỨC QUOTA AWS ACADEMY / FREE TIER)
+        </text>
+      </g>
     </g>
   </g>
-
-  <!-- ================= CAPTION AT BOTTOM ================= -->
-  <text x="600" y="832" font-size="13" font-weight="bold" fill="#0f172a" text-anchor="middle">
-    Hình 1.1 - Kiến trúc tổng thể hệ thống an ninh mạng &amp; Microservices Upstream Kubernetes Multi-AZ
-  </text>
-  <text x="600" y="847" font-size="10" fill="#64748b" text-anchor="middle">
-    (NCS Project: pfSense / Linux Edge Gateway • Upstream K8s v1.31 Multi-AZ • Online Boutique • Wazuh SIEM)
-  </text>
 </svg>

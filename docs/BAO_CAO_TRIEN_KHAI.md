@@ -66,7 +66,7 @@ Trong kỷ nguyên điện toán đám mây và kiến trúc vi dịch vụ (Mic
 ### 1.3. Mục tiêu & Ý nghĩa của từng thành phần
 
 1. **pfSense / Linux Edge Gateway & Suricata IDS**:
-   - *Mục tiêu*: Đóng vai trò là chốt chặn duy nhất kết nối trực tiếp với Internet (Public IP `13.228.8.81`). Mọi kết nối từ ngoài vào cụm ứng dụng hoặc các trang quản trị bắt buộc phải qua Gateway.
+   - *Mục tiêu*: Đóng vai trò là chốt chặn duy nhất kết nối trực tiếp với Internet (Public IP `13.251.225.100`). Mọi kết nối từ ngoài vào cụm ứng dụng hoặc các trang quản trị bắt buộc phải qua Gateway.
    - *Ý nghĩa an ninh*: Phân tích gói tin tầng 7 (HTTP) theo thời gian thực để phát hiện sớm các hành vi tấn công phổ biến như SQL Injection, Cross-Site Scripting (XSS), Path Traversal và Port Scanning trước khi gói tin chạm đến các dịch vụ bên trong.
 
 2. **Cụm Upstream Kubernetes v1.31 (Kubeadm)**:
@@ -113,7 +113,7 @@ Trong kỷ nguyên điện toán đám mây và kiến trúc vi dịch vụ (Mic
 ```text
                            [ INTERNET / ATTACKER / CLIENT ]
                                           │
-                        Elastic IP WAN: 13.228.8.81
+                        Elastic IP WAN: 13.251.225.100
                                           │
     ┌─────────────────────────────────────▼─────────────────────────────────────┐
     │                PFSENSE / LINUX EDGE GATEWAY (10.0.1.8)                    │
@@ -153,7 +153,7 @@ Trong kỷ nguyên điện toán đám mây và kiến trúc vi dịch vụ (Mic
 
 1. **VPC Mạng chính**: `10.0.0.0/16` trên AWS Region `ap-southeast-1` (Singapore).
 2. **Subnet Công cộng (Public WAN Subnet - `10.0.1.0/24`)**:
-   - Card mạng ngoài (`ens5`) của Gateway: `10.0.1.8`, gắn Elastic IP tĩnh `13.228.8.81`.
+   - Card mạng ngoài (`ens5`) của Gateway: `10.0.1.8`, gắn Elastic IP tĩnh `13.251.225.100`.
    - Kết nối trực tiếp ra Internet Gateway (IGW).
 3. **Subnet K8s Master & Worker 1 (`10.0.10.0/24`)**:
    - Card mạng trong (`ens6`) của Gateway: `10.0.10.254` (Default Gateway cho LAN).
@@ -168,14 +168,14 @@ Trong kỷ nguyên điện toán đám mây và kiến trúc vi dịch vụ (Mic
 
 ### 2.3. Bảng phân bổ cổng dịch vụ (Port Mapping Table)
 
-Để người dùng và quản trị viên có thể truy cập tất cả các dịch vụ thông qua **duy nhất một địa chỉ IP Public (`13.228.8.81`)** mà không bị xung đột, hệ thống phân bổ các cổng chuyên biệt như sau:
+Để người dùng và quản trị viên có thể truy cập tất cả các dịch vụ thông qua **duy nhất một địa chỉ IP Public (`13.251.225.100`)** mà không bị xung đột, hệ thống phân bổ các cổng chuyên biệt như sau:
 
 | Dịch vụ | Địa chỉ truy cập External | Cổng External | Đích chuyển tiếp Internal (DNAT) | Mô tả tính năng |
 | :--- | :--- | :---: | :--- | :--- |
-| **Online Boutique** | `http://13.228.8.81/` | **`80`** | `10.0.10.10:80` (Ingress NGINX) | Cửa hàng thương mại điện tử công khai |
-| **Rancher Server** | `https://13.228.8.81:7443/` | **`7443`** | `10.0.10.10:30443` (Rancher NodePort) | Giao diện quản trị cụm Kubernetes |
-| **Wazuh SIEM** | `https://13.228.8.81:8443/` | **`8443`** | `10.0.10.10:9443` (Wazuh Dashboard) | Giao diện giám sát an ninh SOC & Alerts |
-| **SSH Bastion** | `ssh ubuntu@13.228.8.81` | **`22`** | Trực tiếp tại Gateway | Cổng kết nối CLI quản trị an toàn (khóa RSA) |
+| **Online Boutique** | `http://13.251.225.100/` | **`80`** | `10.0.10.10:80` (Ingress NGINX) | Cửa hàng thương mại điện tử công khai |
+| **Rancher Server** | `https://13.251.225.100:7443/` | **`7443`** | `10.0.10.10:30443` (Rancher NodePort) | Giao diện quản trị cụm Kubernetes |
+| **Wazuh SIEM** | `https://13.251.225.100:8443/` | **`8443`** | `10.0.10.10:55000` (Wazuh API & Manager) | Quản lý an ninh tập trung & giám sát SOC/Alerts |
+| **SSH Bastion** | `ssh ubuntu@13.251.225.100` | **`22`** | Trực tiếp tại Gateway | Cổng kết nối CLI quản trị an toàn (khóa RSA) |
 
 ---
 
@@ -270,7 +270,7 @@ Hạ tầng mạng và máy chủ được mã hóa toàn bộ dưới dạng Co
    helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
    helm install rancher rancher-prime/rancher \
      --namespace cattle-system \
-     --set hostname=13.228.8.81.sslip.io \
+     --set hostname=13.251.225.100.sslip.io \
      --set bootstrapPassword="<RANCHER_BOOTSTRAP_PASSWORD>" \
      --set replicas=1
    ```
@@ -291,7 +291,7 @@ Hạ tầng mạng và máy chủ được mã hóa toàn bộ dưới dạng Co
      selector:
        app: rancher
    ```
-   Kết hợp với rule DNAT tại Gateway, người dùng có thể truy cập trực tiếp bằng IP:Port: **`https://13.228.8.81:7443/`**.
+   Kết hợp với rule DNAT tại Gateway, người dùng có thể truy cập trực tiếp bằng IP:Port: **`https://13.251.225.100:7443/`**.
 
 ---
 
@@ -386,15 +386,15 @@ Tiến hành gửi HTTP Request kiểm tra mã phản hồi (HTTP Status Code) c
 
 ```bash
 # Kiểm tra Cửa hàng Online Boutique
-curl -I http://13.228.8.81/
+curl -I http://13.251.225.100/
 # Kết quả: HTTP/1.1 200 OK
 
 # Kiểm tra Rancher Management Server
-curl -k -I https://13.228.8.81:7443/
-# Kết quả: HTTP/1.1 200 OK (X-Api-Schemas: https://13.228.8.81:7443/meta/schemas)
+curl -k -I https://13.251.225.100:7443/
+# Kết quả: HTTP/1.1 200 OK (X-Api-Schemas: https://13.251.225.100:7443/meta/schemas)
 
 # Kiểm tra Wazuh SIEM Security Dashboard
-curl -k -I https://13.228.8.81:8443/
+curl -k -I https://13.251.225.100:8443/
 # Kết quả: HTTP/1.1 302 Found (Chuyển hướng vào /app/login)
 ```
 👉 **Đánh giá**: Cả 3 giao diện Web đều phản hồi hoàn hảo trên các cổng độc lập, sẵn sàng phục vụ người dùng và người quản trị.
@@ -405,21 +405,21 @@ curl -k -I https://13.228.8.81:8443/
 Thực thi bộ script mô phỏng các kỹ thuật tấn công phổ biến nhắm vào IP Gateway:
 ```bash
 # 1. SQL Injection
-curl -s "http://13.228.8.81/?id=1%20UNION%20SELECT%20null,username,password%20FROM%20users"
-curl -s "http://13.228.8.81/product/0PUK6V6EV0?q=1%20OR%201=1"
+curl -s "http://13.251.225.100/?id=1%20UNION%20SELECT%20null,username,password%20FROM%20users"
+curl -s "http://13.251.225.100/product/0PUK6V6EV0?q=1%20OR%201=1"
 
 # 2. Path Traversal
-curl -s --path-as-is "http://13.228.8.81/static/../../../../etc/passwd"
+curl -s --path-as-is "http://13.251.225.100/static/../../../../etc/passwd"
 
 # 3. Cross-Site Scripting (XSS)
-curl -s "http://13.228.8.81/?search=%3Cscript%3Ealert('pwned')%3C/script%3E"
+curl -s "http://13.251.225.100/?search=%3Cscript%3Ealert('pwned')%3C/script%3E"
 
 # 4. Thăm dò file cấu hình nhạy cảm
-curl -s "http://13.228.8.81/.env"
-curl -s "http://13.228.8.81/.git/config"
+curl -s "http://13.251.225.100/.env"
+curl -s "http://13.251.225.100/.git/config"
 
 # 5. Remote Code Execution Probe
-curl -s "http://13.228.8.81/?cmd=whoami"
+curl -s "http://13.251.225.100/?cmd=whoami"
 ```
 
 **Bằng chứng phát hiện thực tế trên Suricata IDS (`/var/log/suricata/fast.log`)**:
@@ -509,20 +509,20 @@ Dự án đã xây dựng thành công một hệ thống bảo vệ toàn diệ
                           NCS PROJECT - PRODUCTION ENDPOINTS
 ========================================================================================
 1. CỬA HÀNG ONLINE BOUTIQUE:
-   • URL: http://13.228.8.81/ (Port 80)
+   • URL: http://13.251.225.100/ (Port 80)
    • Đối tượng: Khách hàng / Kiểm thử viên
 
 2. GIAO DIỆN QUẢN TRỊ RANCHER SERVER:
-   • URL: https://13.228.8.81:7443/ (Port 7443)
-   • Domain phụ: https://13.228.8.81.sslip.io/ hoặc https://rancher.lab
+   • URL: https://13.251.225.100:7443/ (Port 7443)
+   • Domain phụ: https://13.251.225.100.sslip.io/ hoặc https://rancher.lab
    • Bootstrap Password: <Xem trong file credentials.local.txt>
 
 3. BẢNG ĐIỀU KHIỂN SOC WAZUH SIEM:
-   • URL: https://13.228.8.81:8443/ (Port 8443)
+   • URL: https://13.251.225.100:8443/ (Port 8443)
    • Tài khoản: admin
    • Mật khẩu:  <Xem trong file credentials.local.txt>
 
 4. KẾT NỐI BASTION SSH:
-   • Lệnh: ssh -i ~/.ssh/ncs-key.pem ubuntu@13.228.8.81
+   • Lệnh: ssh -i ~/.ssh/ncs-key.pem ubuntu@13.251.225.100
 ========================================================================================
 ```

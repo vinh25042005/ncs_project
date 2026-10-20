@@ -1,6 +1,5 @@
 # NCS Project: Microservices Security, Upstream Kubernetes, pfSense & Wazuh SIEM
 
-Hệ thống vận hành kiến trúc Microservices hiện đại trên cụm Kubernetes Upstream v1.31 (Kubeadm), được bảo vệ đa tầng bởi tường lửa biên pfSense / Linux Gateway (Suricata IDS/IPS), cô lập luồng mạng bằng Kubernetes Network Policies (Zero-Trust) và giám sát an ninh tập trung với Wazuh SIEM.
 
 ---
 
@@ -93,7 +92,7 @@ Hệ thống bao gồm 11 vi dịch vụ độc lập cùng bộ sinh tải:
 
 ---
 
-## 4. Chính sách An toàn mạng (Network Policies - Zero-Trust)
+## 4.(Network Policies - Zero-Trust)
 
 Toàn bộ namespace `online-boutique` áp dụng nguyên tắc **Default Deny**:
 * Mọi traffic inbound mặc định bị DROP.
