@@ -25,7 +25,7 @@ workers
 [all:vars]
 ansible_user=ubuntu
 ansible_ssh_private_key_file=~/.ssh/${var.key_name}.pem
-ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/${var.key_name}.pem -W %%h:%%p ubuntu@${module.compute.pfsense_public_ip}"'
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/${var.key_name}.pem -W %h:%p ubuntu@${module.compute.pfsense_public_ip}"'
 EOF
 }
 

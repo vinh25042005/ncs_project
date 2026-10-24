@@ -3,7 +3,7 @@
 set -e
 
 # Đọc tên bucket từ backend trong main.tf
-BUCKET=$(grep -E '^\s*bucket\s*=' main.tf | awk -F'"' '{print $2}')
+BUCKET=$(grep -E '^\s*bucket\s*=' versions.tf | awk -F'"' '{print $2}')
 S3_VARS_PATH="s3://${BUCKET}/vars/terraform.tfvars"
 
 usage() {
