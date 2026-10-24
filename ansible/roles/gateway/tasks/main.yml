@@ -1,105 +1,128 @@
 ---
-# Role: gateway — Cấu hình Suricata IDS/IPS trên pfSense/Linux Edge Gateway
-# Tự động gán card mạng WAN, kích hoạt service, nạp ruleset phát hiện tấn công
-# =========================================================================
-
-- name: Nhận diện card mạng WAN và LAN thực tế
-  shell: |
+# Role: gateway — Suricata IDS/IPS biên + DNAT cổng quản trị
+# gateway_suricata_ips=false -> PHÁT HIỆN (af-packet); =true -> CHẶN inline (NFQUEUE -q 0)
+# Lưu ý: systemd unit gốc ghi cứng --af-packet, nên dùng drop-in override để đổi chế độ.
+- name: Nhận diện card mạng WAN
+  ansible.builtin.shell: |
     WAN_DEV=$(ip -o -4 route show to default | awk '{print $5}' | head -n1)
     [ -z "$WAN_DEV" ] && WAN_DEV="ens5"
     echo "$WAN_DEV"
   register: detected_wan_dev
   changed_when: false
 
-- name: Cập nhật card mạng lắng nghe trong /etc/default/suricata
-  shell: |
-    WAN_DEV="{{ detected_wan_dev.stdout }}"
-    sed -i 's/^RUN=no/RUN=yes/' /etc/default/suricata
-    sed -i "s/^IFACE=.*/IFACE=$WAN_DEV/" /etc/default/suricata
-    sed -i 's/^LISTENMODE=.*/LISTENMODE=af-packet/' /etc/default/suricata
-  changed_when: true
+- name: disable.conf — tắt tất cả trước
+  ansible.builtin.copy:
+    dest: /etc/suricata/disable.conf
+    content: "re:.\n"
+    mode: "0644"
 
-- name: Cập nhật card mạng trong /etc/suricata/suricata.yaml
-  shell: |
-    WAN_DEV="{{ detected_wan_dev.stdout }}"
-    sed -i "s/- interface: eth0/- interface: $WAN_DEV/g" /etc/suricata/suricata.yaml
-  changed_when: true
-
-- name: Tạo thư mục chứa rules nếu chưa tồn tại
-  file:
-    path: /etc/suricata/rules
-    state: directory
-    mode: '0755'
-
-- name: Thêm tập rule phát hiện tấn công Web mẫu vào /etc/suricata/rules/local.rules
-  copy:
-    dest: /etc/suricata/rules/local.rules
-    mode: '0644'
+- name: enable.conf — bật nhóm quét & tấn công web
+  ansible.builtin.copy:
+    dest: /etc/suricata/enable.conf
+    mode: "0644"
     content: |
-      # NCS Project Custom IDS Rules for Web Application Attacks
-      alert http any any -> any any (msg:"[NCS-ATTACK] SQL Injection Attempt Detected (UNION SELECT)"; content:"UNION"; nocase; http_uri; sid:1000001; rev:1;)
-      alert http any any -> any any (msg:"[NCS-ATTACK] SQL Injection Attempt Detected (OR 1=1)"; content:"1=1"; nocase; http_uri; sid:1000002; rev:1;)
-      alert http any any -> any any (msg:"[NCS-ATTACK] Path Traversal / LFI Attempt (/etc/passwd)"; content:"etc/passwd"; nocase; http_uri; sid:1000003; rev:1;)
-      alert http any any -> any any (msg:"[NCS-ATTACK] Path Traversal Attempt (../..)"; content:"../.."; http_uri; sid:1000004; rev:1;)
-      alert http any any -> any any (msg:"[NCS-ATTACK] XSS Cross-Site Scripting Attempt (<script>)"; content:"<script>"; nocase; http_uri; sid:1000005; rev:1;)
-      alert http any any -> any any (msg:"[NCS-ATTACK] Sensitive File Probing (.env)"; content:".env"; nocase; http_uri; sid:1000006; rev:1;)
-      alert http any any -> any any (msg:"[NCS-ATTACK] Sensitive File Probing (.git/config)"; content:".git"; nocase; http_uri; sid:1000007; rev:1;)
-      alert http any any -> any any (msg:"[NCS-ATTACK] Remote Command Execution Probe (cmd= / id)"; content:"whoami"; nocase; http_uri; sid:1000008; rev:1;)
-      alert tcp any any -> any 22 (msg:"[NCS-SCAN] SSH Connection to Gateway"; flags:S; sid:1000009; rev:1;)
+      group:emerging-scan.rules
+      group:emerging-web_server.rules
+      group:emerging-user_agents.rules
+      group:emerging-attack_response.rules
 
-- name: Đảm bảo local.rules được nạp vào /etc/suricata/suricata.yaml
-  shell: |
-    python3 -c '
-    import re
-    with open("/etc/suricata/suricata.yaml", "r") as f:
-        content = f.read()
-    content = re.sub(r"rule-files:\n(?:[ \t]*-[^\n]+\n)*", "rule-files:\n  - local.rules\n", content)
-    with open("/etc/suricata/suricata.yaml", "w") as f:
-        f.write(content)
-    '
+- name: drop.conf — chuyển nhóm quét/web sang DROP (chỉ khi IPS)
+  ansible.builtin.copy:
+    dest: /etc/suricata/drop.conf
+    mode: "0644"
+    content: |
+      # drop.conf: nhom luat chuyen sang DROP (rong = khong drop nhom nao)
+      {% if gateway_suricata_ips | bool %}
+      group:emerging-scan.rules
+      group:emerging-web_server.rules
+      {% endif %}
+
+- name: Tải & biên dịch bộ luật ET Open (chỉ nhóm đã bật)
+  ansible.builtin.command: suricata-update --no-test --no-reload
   changed_when: true
 
-- name: Khởi động lại dịch vụ Suricata IDS
-  systemd:
+- name: Ghi luật tự viết local.rules
+  ansible.builtin.template:
+    src: local.rules.j2
+    dest: /etc/suricata/rules/local.rules
+    mode: "0644"
+
+- name: Cấu hình rule-files + tắt checksum trong suricata.yaml
+  ansible.builtin.shell: |
+    python3 - <<'PYEOF'
+    import re
+    p = "/etc/suricata/suricata.yaml"
+    c = open(p).read()
+    c = re.sub(r"rule-files:\n(?:[ \t]*-[^\n]+\n)*",
+               "rule-files:\n  - /var/lib/suricata/rules/suricata.rules\n  - /etc/suricata/rules/local.rules\n", c)
+    c = re.sub(r"(\n\s*)checksum-validation:\s*\w+", r"\1checksum-validation: no", c)
+    open(p, "w").write(c)
+    PYEOF
+  changed_when: true
+
+- name: Thư mục systemd drop-in cho suricata
+  ansible.builtin.file:
+    path: /etc/systemd/system/suricata.service.d
+    state: directory
+    mode: "0755"
+
+- name: Override ExecStart — af-packet (phát hiện) hoặc NFQUEUE -q 0 (chặn)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/suricata.service.d/override.conf
+    mode: "0644"
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/suricata -D {{ '-q 0' if gateway_suricata_ips | bool else '--af-packet' }} -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid
+
+- name: Nạp lại systemd và khởi động lại Suricata
+  ansible.builtin.systemd_service:
     name: suricata
     state: restarted
-    enabled: yes
-    daemon_reload: yes
+    enabled: true
+    daemon_reload: true
 
-- name: Đợi dịch vụ Suricata khởi động ổn định
-  pause:
+- name: Đợi Suricata ổn định
+  ansible.builtin.pause:
     seconds: 5
 
-- name: Kiểm tra trạng thái hoạt động của Suricata
-  command: systemctl is-active suricata
+- name: Xác nhận Suricata đang chạy
+  ansible.builtin.command: systemctl is-active suricata
   register: suricata_status
+  failed_when: suricata_status.stdout != "active"
   changed_when: false
 
-- name: Cấu hình chuyển tiếp cổng 8443 (DNAT) vào Wazuh SIEM Dashboard (Port 9443 trên Master)
-  shell: |
-    WAN_DEV="{{ detected_wan_dev.stdout }}"
-    if ! iptables -t nat -C PREROUTING -i $WAN_DEV -p tcp --dport 8443 -j DNAT --to-destination 10.0.10.10:9443 2>/dev/null; then
-      iptables -t nat -A PREROUTING -i $WAN_DEV -p tcp --dport 8443 -j DNAT --to-destination 10.0.10.10:9443
-    fi
-    if ! iptables -t nat -C POSTROUTING -p tcp -d 10.0.10.10 --dport 9443 -j MASQUERADE 2>/dev/null; then
-      iptables -t nat -A POSTROUTING -p tcp -d 10.0.10.10 --dport 9443 -j MASQUERADE
-    fi
+- name: "IPS: đưa traffic chuyển tiếp qua NFQUEUE (fail-open)"
+  ansible.builtin.shell: |
+    iptables -C FORWARD -j NFQUEUE --queue-num 0 --queue-bypass 2>/dev/null \
+      || iptables -I FORWARD 1 -j NFQUEUE --queue-num 0 --queue-bypass
+    netfilter-persistent save
+  when: gateway_suricata_ips | bool
   changed_when: true
 
-- name: Cấu hình chuyển tiếp cổng 7443 (DNAT) vào Rancher Management Server (NodePort 30443 trên Master)
-  shell: |
-    WAN_DEV="{{ detected_wan_dev.stdout }}"
-    if ! iptables -t nat -C PREROUTING -i $WAN_DEV -p tcp --dport 7443 -j DNAT --to-destination 10.0.10.10:30443 2>/dev/null; then
-      iptables -t nat -A PREROUTING -i $WAN_DEV -p tcp --dport 7443 -j DNAT --to-destination 10.0.10.10:30443
-    fi
-    if ! iptables -t nat -C POSTROUTING -p tcp -d 10.0.10.10 --dport 30443 -j MASQUERADE 2>/dev/null; then
-      iptables -t nat -A POSTROUTING -p tcp -d 10.0.10.10 --dport 30443 -j MASQUERADE
-    fi
+- name: "IDS: gỡ NFQUEUE khỏi FORWARD (chế độ chỉ phát hiện)"
+  ansible.builtin.shell: |
+    while iptables -C FORWARD -j NFQUEUE --queue-num 0 --queue-bypass 2>/dev/null; do
+      iptables -D FORWARD -j NFQUEUE --queue-num 0 --queue-bypass
+    done
+    netfilter-persistent save
+  when: not (gateway_suricata_ips | bool)
   changed_when: true
 
-- name: Xác nhận Suricata đang chạy
-  assert:
-    that:
-      - suricata_status.stdout == "active"
-    fail_msg: "Suricata service không thể khởi chạy thành công!"
-    success_msg: "Suricata IDS/IPS đã khởi chạy thành công và đang lắng nghe trên card mạng WAN {{ detected_wan_dev.stdout }}!"
+- name: DNAT 8443 -> Wazuh Dashboard (master:9443)
+  ansible.builtin.shell: |
+    WAN_DEV="{{ detected_wan_dev.stdout }}"
+    iptables -t nat -C PREROUTING -i $WAN_DEV -p tcp --dport 8443 -j DNAT --to-destination 10.0.10.10:9443 2>/dev/null \
+      || iptables -t nat -A PREROUTING -i $WAN_DEV -p tcp --dport 8443 -j DNAT --to-destination 10.0.10.10:9443
+    iptables -t nat -C POSTROUTING -p tcp -d 10.0.10.10 --dport 9443 -j MASQUERADE 2>/dev/null \
+      || iptables -t nat -A POSTROUTING -p tcp -d 10.0.10.10 --dport 9443 -j MASQUERADE
+  changed_when: true
+
+- name: DNAT 7443 -> K8s Dashboard/Rancher (master:30443)
+  ansible.builtin.shell: |
+    WAN_DEV="{{ detected_wan_dev.stdout }}"
+    iptables -t nat -C PREROUTING -i $WAN_DEV -p tcp --dport 7443 -j DNAT --to-destination 10.0.10.10:30443 2>/dev/null \
+      || iptables -t nat -A PREROUTING -i $WAN_DEV -p tcp --dport 7443 -j DNAT --to-destination 10.0.10.10:30443
+    iptables -t nat -C POSTROUTING -p tcp -d 10.0.10.10 --dport 30443 -j MASQUERADE 2>/dev/null \
+      || iptables -t nat -A POSTROUTING -p tcp -d 10.0.10.10 --dport 30443 -j MASQUERADE
+  changed_when: true

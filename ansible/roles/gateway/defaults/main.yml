@@ -1,0 +1,4 @@
+---
+# true  = IPS: Suricata chạy NFQUEUE (-q 0), chặn gói (drop)
+# false = IDS: Suricata chạy af-packet, chỉ cảnh báo (an toàn để chạy thử)
+gateway_suricata_ips: true
