@@ -1,0 +1,5 @@
+---
+# IP của Wazuh Manager (mặc định = master_ip trong group_vars)
+wazuh_manager_ip: "{{ master_ip | default('10.0.10.10') }}"
+# true (chỉ gateway): đọc thêm Suricata eve.json + logrotate
+wazuh_agent_suricata: false

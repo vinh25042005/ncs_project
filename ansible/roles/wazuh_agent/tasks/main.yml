@@ -1,0 +1,66 @@
+---
+# Role: wazuh_agent — cài agent, trỏ về manager; (gateway) đọc Suricata eve.json
+- name: Tải GPG key Wazuh
+  ansible.builtin.get_url:
+    url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+    dest: /usr/share/keyrings/wazuh.gpg.asc
+    mode: "0644"
+
+- name: Thêm apt repo Wazuh 4.x
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/wazuh.gpg.asc] https://packages.wazuh.com/4.x/apt/ stable main"
+    filename: wazuh
+    state: present
+
+- name: Cài wazuh-agent (khi cài MỚI sẽ tự trỏ về manager + tự enroll)
+  ansible.builtin.apt:
+    name: wazuh-agent
+    state: present
+    update_cache: true
+  environment:
+    WAZUH_MANAGER: "{{ wazuh_manager_ip }}"
+    WAZUH_AGENT_NAME: "{{ inventory_hostname }}"
+
+- name: Đảm bảo địa chỉ manager đúng trong ossec.conf (cho cả trường hợp đã cài sẵn)
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: "<address>[^<]*</address>"
+    replace: "<address>{{ wazuh_manager_ip }}</address>"
+  notify: restart wazuh-agent
+
+- name: "(gateway) Đọc Suricata eve.json vào Wazuh"
+  ansible.builtin.blockinfile:
+    path: /var/ossec/etc/ossec.conf
+    marker: "<!-- {mark} ANSIBLE: suricata eve -->"
+    insertbefore: "</ossec_config>"
+    block: |
+      <localfile>
+        <log_format>json</log_format>
+        <location>/var/log/suricata/eve.json</location>
+      </localfile>
+  when: wazuh_agent_suricata | bool
+  notify: restart wazuh-agent
+
+- name: "(gateway) Logrotate cho Suricata eve.json (tránh đầy đĩa)"
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/suricata-eve
+    mode: "0644"
+    content: |
+      /var/log/suricata/eve.json {
+        daily
+        rotate 3
+        size 50M
+        compress
+        missingok
+        nocreate
+        postrotate
+          systemctl kill -s HUP suricata 2>/dev/null || true
+        endscript
+      }
+  when: wazuh_agent_suricata | bool
+
+- name: Bật & chạy wazuh-agent
+  ansible.builtin.systemd_service:
+    name: wazuh-agent
+    state: started
+    enabled: true

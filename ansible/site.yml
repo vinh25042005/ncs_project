@@ -67,3 +67,21 @@
   tags: [netpol]
   roles:
     - online_boutique
+
+# Giai đoạn 9: Wazuh Manager trên master (thu thập log + sinh cảnh báo)
+- name: Giai đoạn 9 - Wazuh Manager + đọc K8s audit log
+  hosts: master
+  become: yes
+  tags: [wazuh]
+  roles:
+    - wazuh_manager
+
+# Giai đoạn 10: Wazuh Agent trên gateway (đẩy log Suricata eve.json)
+- name: Giai đoạn 10 - Wazuh Agent (gateway + Suricata)
+  hosts: gateway
+  become: yes
+  tags: [wazuh]
+  vars:
+    wazuh_agent_suricata: true
+  roles:
+    - wazuh_agent

@@ -1,0 +1,37 @@
+---
+# Role: wazuh_manager — cài Wazuh Manager + đọc K8s audit log (chạy trên master)
+- name: Tải GPG key Wazuh
+  ansible.builtin.get_url:
+    url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+    dest: /usr/share/keyrings/wazuh.gpg.asc
+    mode: "0644"
+
+- name: Thêm apt repo Wazuh 4.x
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/wazuh.gpg.asc] https://packages.wazuh.com/4.x/apt/ stable main"
+    filename: wazuh
+    state: present
+
+- name: Cài wazuh-manager (bỏ qua nếu đã cài sẵn)
+  ansible.builtin.apt:
+    name: wazuh-manager
+    state: present
+    update_cache: true
+
+- name: Đọc K8s audit log vào Wazuh (localfile)
+  ansible.builtin.blockinfile:
+    path: /var/ossec/etc/ossec.conf
+    marker: "<!-- {mark} ANSIBLE: k8s audit -->"
+    insertbefore: "</ossec_config>"
+    block: |
+      <localfile>
+        <log_format>json</log_format>
+        <location>/var/log/kubernetes/audit.log</location>
+      </localfile>
+  notify: restart wazuh-manager
+
+- name: Bật & chạy wazuh-manager
+  ansible.builtin.systemd_service:
+    name: wazuh-manager
+    state: started
+    enabled: true
