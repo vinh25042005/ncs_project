@@ -55,6 +55,9 @@
         extraArgs:
           audit-log-path: "/var/log/kubernetes/audit.log"
           audit-policy-file: "/etc/kubernetes/audit-policy.yaml"
+          audit-log-maxsize: "{{ audit_log_maxsize }}"
+          audit-log-maxbackup: "{{ audit_log_maxbackup }}"
+          audit-log-maxage: "{{ audit_log_maxage }}"
         extraVolumes:
           - name: "audit-policy"
             hostPath: "/etc/kubernetes/audit-policy.yaml"
@@ -84,6 +87,43 @@
     cp -f /etc/kubernetes/admin.conf /root/.kube/config
     chown -R ubuntu:ubuntu /home/ubuntu/.kube
   changed_when: false
+
+- name: Kiểm tra manifest kube-apiserver (static pod)
+  stat:
+    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+  register: apiserver_manifest
+  tags: [audit]
+
+- name: Giới hạn audit log trên kube-apiserver (áp dụng cả cho cụm đã dựng trước đây)
+  lineinfile:
+    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    regexp: '^\s*- --{{ item.flag }}='
+    insertafter: '^\s*- --audit-log-path='
+    line: "    - --{{ item.flag }}={{ item.value }}"
+  loop:
+    - { flag: audit-log-maxsize, value: "{{ audit_log_maxsize }}" }
+    - { flag: audit-log-maxbackup, value: "{{ audit_log_maxbackup }}" }
+    - { flag: audit-log-maxage, value: "{{ audit_log_maxage }}" }
+  register: audit_flags
+  when: apiserver_manifest.stat.exists
+  tags: [audit]
+
+- name: Chờ kubelet khởi động lại kube-apiserver với cấu hình audit mới
+  pause:
+    seconds: 30
+  when: audit_flags is changed
+  tags: [audit]
+
+- name: Đợi kube-apiserver sẵn sàng trở lại
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get --raw=/readyz
+  register: apiserver_ready
+  until: apiserver_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  when: audit_flags is changed
+  tags: [audit]
 
 - name: Cài đặt Flannel CNI (Mạng Pod nhẹ cho cụm)
   shell: |
