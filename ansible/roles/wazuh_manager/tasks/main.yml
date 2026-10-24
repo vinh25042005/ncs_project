@@ -1,14 +1,17 @@
 ---
 # Role: wazuh_manager — cài Wazuh Manager + đọc K8s audit log (chạy trên master)
-- name: Tải GPG key Wazuh
-  ansible.builtin.get_url:
-    url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
-    dest: /usr/share/keyrings/wazuh.gpg.asc
-    mode: "0644"
+- name: Import GPG key Wazuh (dearmor về /usr/share/keyrings/wazuh.gpg)
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --dearmor -o /usr/share/keyrings/wazuh.gpg
+    chmod 644 /usr/share/keyrings/wazuh.gpg
+  args:
+    executable: /bin/bash
+    creates: /usr/share/keyrings/wazuh.gpg
 
 - name: Thêm apt repo Wazuh 4.x
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/usr/share/keyrings/wazuh.gpg.asc] https://packages.wazuh.com/4.x/apt/ stable main"
+    repo: "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main"
     filename: wazuh
     state: present
 
