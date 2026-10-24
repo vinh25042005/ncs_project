@@ -52,9 +52,18 @@
   roles:
     - kubernetes_dashboard
 
+# Giai đoạn 7.5: Cài bộ thi hành NetworkPolicy (kube-network-policies) cho cụm Flannel
+- name: Giai đoạn 7.5 - Cài bộ thi hành NetworkPolicy
+  hosts: master
+  become: yes
+  tags: [netpol]
+  roles:
+    - netpol_enforcer
+
 # Giai đoạn 8: Triển khai 12 microservices của Google Online Boutique từ thư mục k8s/
 - name: Giai đoạn 8 - Triển khai Google Online Boutique và Network Policies
   hosts: master
   become: yes
+  tags: [netpol]
   roles:
     - online_boutique

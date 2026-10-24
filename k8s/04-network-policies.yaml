@@ -32,6 +32,12 @@ spec:
         - podSelector:
             matchLabels:
               app: loadgenerator
+        - ipBlock:
+            cidr: 10.244.0.0/16
+        - ipBlock:
+            cidr: 10.0.10.0/24
+        - ipBlock:
+            cidr: 10.0.11.0/24
       ports:
         - protocol: TCP
           port: 8080
@@ -137,6 +143,9 @@ spec:
         - podSelector:
             matchLabels:
               app: checkoutservice
+        - podSelector:
+            matchLabels:
+              app: recommendationservice
       ports:
         - protocol: TCP
           port: 3550

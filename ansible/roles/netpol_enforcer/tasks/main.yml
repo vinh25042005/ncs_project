@@ -1,0 +1,12 @@
+---
+# Role: netpol_enforcer — cài bộ thi hành NetworkPolicy cho cụm dùng Flannel
+- name: Cài kube-network-policies (thi hành NetworkPolicy trên nền Flannel)
+  ansible.builtin.shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f {{ netpol_manifest_url }}
+  register: netpol_apply
+  changed_when: "'created' in netpol_apply.stdout or 'configured' in netpol_apply.stdout"
+
+- name: Đợi DaemonSet kube-network-policies sẵn sàng trên mọi node
+  ansible.builtin.shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system rollout status ds/kube-network-policies --timeout=120s
+  changed_when: false

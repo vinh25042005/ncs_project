@@ -32,3 +32,10 @@
       --for=condition=available deployment --all \
       --timeout=300s
   changed_when: false
+
+- name: Áp dụng namespace nội bộ thứ 2 (internal-tools) và luật cô lập chéo namespace
+  ansible.builtin.shell: |
+    if [ -d /opt/k8s/internal-tools ]; then DIR=/opt/k8s/internal-tools; else DIR=/opt/k8s/k8s/internal-tools; fi
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f "$DIR/"
+  register: internal_tools_apply
+  changed_when: "'created' in internal_tools_apply.stdout or 'configured' in internal_tools_apply.stdout"
