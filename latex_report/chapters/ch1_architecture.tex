@@ -55,7 +55,7 @@ Toàn bộ hạ tầng mạng được bao bọc trong một đám mây ảo ri�
         \midrule
         \texttt{public-subnet} & \texttt{ap-southeast-1a} & \texttt{10.0.1.0/24} & Public & Chứa Edge Gateway, tiếp nhận lưu lượng từ Internet \\
         \texttt{private-subnet-a} & \texttt{ap-southeast-1a} & \texttt{10.0.10.0/24} & Private & Cụm K8s Master và Worker 1 \\
-        \texttt{private-subnet-b} & \texttt{ap-southeast-1b} & \texttt{10.0.11.0/24} & Private & Cụm K8s Worker 2 (Dự phòng thảm họa Multi-AZ) \\
+        \texttt{private-subnet-b} & \texttt{ap-southeast-1b} & \texttt{10.0.11.0/24} & Private & Cụm K8s Worker 2 (Phân tán tải Multi-AZ Worker) \\
         \bottomrule
     \end{tabularx}
 \end{table}

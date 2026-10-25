@@ -240,7 +240,7 @@
       <!-- Zone 2 Header -->
       <path d="M 0,6 Q 0,0 6,0 L 396,0 Q 402,0 402,6 L 402,22 L 0,22 Z" fill="#faf5ff" />
       <line x1="0" y1="22" x2="402" y2="22" stroke="#e9d5ff" stroke-width="1" />
-      <text x="10" y="15" font-size="10" font-weight="800" fill="#7e22ce">VÙNG 2: ap-southeast-1b • Multi-AZ DR</text>
+      <text x="10" y="15" font-size="10" font-weight="800" fill="#7e22ce">VÙNG 2: ap-southeast-1b • Multi-AZ Worker</text>
       <text x="320" y="15" class="code" font-weight="700" fill="#9333ea">10.0.11.0/24</text>
 
       <!-- SERVER 3: k8s-worker-2 -->
