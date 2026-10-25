@@ -1,7 +1,5 @@
 ---
-# Role: master — Khởi tạo cụm Kubernetes Gốc (kubeadm init) + Flannel CNI
-# ======================================================================
-
+# Role: master — Khởi tạo cụm Kubernetes (kubeadm init) + Flannel CNI
 - name: Kiểm tra xem cụm đã được khởi tạo trước đó chưa
   stat:
     path: /etc/kubernetes/admin.conf
@@ -18,61 +16,15 @@
 
 - name: Tạo file audit-policy.yaml cho K8s API Server (phục vụ Wazuh SIEM)
   copy:
+    src: audit-policy.yaml
     dest: /etc/kubernetes/audit-policy.yaml
-    content: |
-      apiVersion: audit.k8s.io/v1
-      kind: Policy
-      rules:
-        - level: Metadata
-          resources:
-            - group: ""
-              resources: ["secrets", "configmaps"]
-        - level: RequestResponse
-          resources:
-            - group: ""
-              resources: ["pods", "pods/exec"]
-        - level: Metadata
+    mode: '0644'
 
 - name: Tạo cấu hình kubeadm-config.yaml
-  copy:
+  template:
+    src: kubeadm-config.yaml.j2
     dest: /etc/kubernetes/kubeadm-config.yaml
-    content: |
-      apiVersion: kubeadm.k8s.io/v1beta3
-      kind: InitConfiguration
-      localAPIEndpoint:
-        advertiseAddress: "{{ master_ip }}"
-        bindPort: 6443
-      nodeRegistration:
-        criSocket: "unix:///var/run/containerd/containerd.sock"
-        kubeletExtraArgs:
-          fail-swap-on: "false"
-      ---
-      apiVersion: kubeadm.k8s.io/v1beta3
-      kind: ClusterConfiguration
-      networking:
-        podSubnet: "{{ pod_network_cidr }}"
-      apiServer:
-        extraArgs:
-          audit-log-path: "/var/log/kubernetes/audit.log"
-          audit-policy-file: "/etc/kubernetes/audit-policy.yaml"
-          audit-log-maxsize: "{{ audit_log_maxsize }}"
-          audit-log-maxbackup: "{{ audit_log_maxbackup }}"
-          audit-log-maxage: "{{ audit_log_maxage }}"
-        extraVolumes:
-          - name: "audit-policy"
-            hostPath: "/etc/kubernetes/audit-policy.yaml"
-            mountPath: "/etc/kubernetes/audit-policy.yaml"
-            readOnly: true
-            pathType: "File"
-          - name: "audit-log"
-            hostPath: "/var/log/kubernetes"
-            mountPath: "/var/log/kubernetes"
-            readOnly: false
-            pathType: "DirectoryOrCreate"
-      ---
-      apiVersion: kubelet.config.k8s.io/v1beta1
-      kind: KubeletConfiguration
-      failSwapOn: false
+    mode: '0644'
   when: not kubeadmin_conf.stat.exists
 
 - name: Khởi tạo Kubernetes Control-Plane với kubeadm

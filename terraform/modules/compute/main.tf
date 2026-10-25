@@ -1,9 +1,3 @@
-# ==============================================================================
-# Module: Compute
-# Provisioning: pfSense Gateway (Dual ENI), Upstream K8s Master & Workers, Wazuh
-# Security Hardening: IMDSv2 Enforced, KMS EBS Encryption, Multi-AZ Subnets
-# ==============================================================================
-
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -14,7 +8,7 @@ data "aws_ami" "ubuntu" {
 }
 
 # ─────────────────────────────────────────────────────────────
-# 1. pfSense / Security Gateway (Tường lửa biên & Suricata IDS)
+# 1. pfSense / Security Gateway
 # ─────────────────────────────────────────────────────────────
 
 # WAN Interface (Public Subnet)
@@ -150,6 +144,10 @@ resource "aws_instance" "pfsense" {
               systemctl enable suricata
               EOF
 
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   tags = {
     Name = "${var.project_name}-firewall-suricata"
     Role = "edge-firewall"
@@ -160,17 +158,7 @@ resource "aws_instance" "pfsense" {
 # 2. Upstream Kubernetes Cluster (Master & Multi-AZ Worker Nodes)
 # ─────────────────────────────────────────────────────────────
 
-moved {
-  from = aws_instance.k3s_master
-  to   = aws_instance.k8s_master
-}
-
-moved {
-  from = aws_instance.k3s_worker
-  to   = aws_instance.k8s_worker
-}
-
-# Kubernetes Master Node (Control Plane + Ingress + HPA)
+// K8s Master node
 resource "aws_instance" "k8s_master" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.k8s_master_instance_type
@@ -188,7 +176,7 @@ resource "aws_instance" "k8s_master" {
 
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "required" # IMDSv2 Enforced
+    http_tokens                 = "required" // IMDSv2 Enforced
     http_put_response_hop_limit = 1
     instance_metadata_tags      = "enabled"
   }
@@ -218,13 +206,17 @@ resource "aws_instance" "k8s_master" {
               fi
               EOF
 
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   tags = {
     Name = "${var.project_name}-k8s-master"
     Role = "k8s-control-plane"
   }
 }
 
-# Kubernetes Worker Node (Phân bổ qua 2 AZ: AZ-a & AZ-b)
+// K8s Worker nodes (Multi-AZ)
 resource "aws_instance" "k8s_worker" {
   count                  = var.worker_count
   ami                    = data.aws_ami.ubuntu.id
@@ -242,7 +234,7 @@ resource "aws_instance" "k8s_worker" {
 
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "required" # IMDSv2 Enforced
+    http_tokens                 = "required" // IMDSv2 Enforced
     http_put_response_hop_limit = 1
     instance_metadata_tags      = "enabled"
   }
@@ -272,97 +264,12 @@ resource "aws_instance" "k8s_worker" {
               fi
               EOF
 
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   tags = {
     Name = "${var.project_name}-k8s-worker-${count.index + 1}"
     Role = "k8s-worker"
-  }
-}
-
-# ─────────────────────────────────────────────────────────────
-# 3. Wazuh SIEM Server (Tùy chọn)
-# ─────────────────────────────────────────────────────────────
-
-resource "aws_instance" "wazuh" {
-  count                       = var.enable_wazuh ? 1 : 0
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.wazuh_instance_type
-  key_name                    = var.key_name
-  subnet_id                   = var.mgmt_subnet_id
-  vpc_security_group_ids      = [var.wazuh_sg_id]
-  associate_public_ip_address = true
-
-  root_block_device {
-    volume_size           = 50
-    volume_type           = "gp3"
-    encrypted             = true
-    delete_on_termination = true
-  }
-
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 1
-    instance_metadata_tags      = "enabled"
-  }
-
-  tags = {
-    Name = "${var.project_name}-wazuh-siem"
-    Role = "siem-dashboard"
-  }
-}
-
-# ─────────────────────────────────────────────────────────────
-# 4. Rancher Management Server (Tùy chọn tách riêng VM)
-# ─────────────────────────────────────────────────────────────
-
-resource "aws_instance" "rancher" {
-  count                       = var.enable_rancher_vm ? 1 : 0
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.rancher_instance_type
-  key_name                    = var.key_name
-  subnet_id                   = var.mgmt_subnet_id
-  vpc_security_group_ids      = [var.rancher_sg_id]
-  associate_public_ip_address = true
-
-  root_block_device {
-    volume_size           = 30
-    volume_type           = "gp3"
-    encrypted             = true
-    delete_on_termination = true
-  }
-
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 1
-    instance_metadata_tags      = "enabled"
-  }
-
-  user_data = <<-EOF
-              #!/bin/bash
-              set -e
-
-              # Cài đặt Docker CE
-              apt-get update -y
-              apt-get install -y ca-certificates curl gnupg lsb-release
-              install -m 0755 -d /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-              chmod a+r /etc/apt/keyrings/docker.gpg
-              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-              apt-get update -y
-              apt-get install -y docker-ce docker-ce-cli containerd.io
-
-              # Khởi chạy Rancher Server container
-              systemctl enable --now docker
-              docker run -d --restart=unless-stopped \
-                -p 80:80 -p 443:443 \
-                --privileged \
-                --name rancher-server \
-                rancher/rancher:stable
-              EOF
-
-  tags = {
-    Name = "${var.project_name}-rancher-server"
-    Role = "k8s-management-dashboard"
   }
 }

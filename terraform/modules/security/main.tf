@@ -79,12 +79,7 @@ resource "aws_security_group" "pfsense" {
   }
 }
 
-moved {
-  from = aws_security_group.k3s
-  to   = aws_security_group.k8s
-}
-
-# 2. Security Group: Upstream Kubernetes Cluster Nodes (Private Subnet - Không expose ra Internet)
+// Security Group: Upstream Kubernetes Nodes (Private)
 resource "aws_security_group" "k8s" {
   name        = "${var.project_name}-sg-k8s"
   description = "Security Group for Upstream Kubernetes Master and Worker Nodes"

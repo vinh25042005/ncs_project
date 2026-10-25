@@ -1,0 +1,5 @@
+# drop.conf: nhom luat chuyen sang DROP (rong = khong drop nhom nao)
+{% if gateway_suricata_ips | bool %}
+group:emerging-scan.rules
+group:emerging-web_server.rules
+{% endif %}

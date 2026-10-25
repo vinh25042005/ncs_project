@@ -1,17 +1,17 @@
 variable "project_name" {
-  description = "Tên dự án sử dụng để gắn nhãn (tag) tài nguyên"
+  description = "Tên dự án"
   type        = string
   default     = "ncs-project"
 }
 
 variable "region" {
-  description = "AWS Region triển khai hạ tầng"
+  description = "AWS Region "
   type        = string
   default     = "ap-southeast-1"
 }
 
 variable "aws_profile" {
-  description = "Tên AWS CLI Profile được cấu hình trên máy"
+  description = "Tên AWS CLI Profile"
   type        = string
   default     = "default"
 }
@@ -35,13 +35,13 @@ variable "key_name" {
 }
 
 variable "admin_cidr" {
-  description = "Địa chỉ IP/CIDR của bạn được phép truy cập SSH, pfSense GUI và Wazuh Dashboard"
+  description = "Địa chỉ IP/CIDR được phép truy cập SSH, pfSense GUI và Wazuh Dashboard"
   type        = string
   default     = "0.0.0.0/0"
 
   validation {
     condition     = can(cidrhost(var.admin_cidr, 0))
-    error_message = "Giá trị admin_cidr phải là một định dạng CIDR IPv4 hợp lệ."
+    error_message = "CIDR IPv4 ko hợp lệ."
   }
 }
 
@@ -52,7 +52,7 @@ variable "vpc_cidr" {
 
   validation {
     condition     = can(cidrhost(var.vpc_cidr, 0))
-    error_message = "Giá trị vpc_cidr phải là một định dạng CIDR IPv4 hợp lệ."
+    error_message = "CIDR IPv4 ko hợp lệ."
   }
 }
 
@@ -75,7 +75,7 @@ variable "mgmt_cidr" {
 }
 
 variable "pfsense_ami_id" {
-  description = "AMI ID của pfSense Community Edition / Plus trên AWS Marketplace (nếu để trống sẽ dùng Ubuntu Security Gateway + Suricata)"
+  description = "AMI ID của pfSense Community Edition / Plus trên AWS Marketplace"
   type        = string
   default     = ""
 }
@@ -110,26 +110,4 @@ variable "worker_count" {
   default     = 2
 }
 
-variable "enable_wazuh" {
-  description = "Bật/Tắt máy chủ Wazuh SIEM EC2 riêng biệt (mặc định tắt khi cài chung trên Master)"
-  type        = bool
-  default     = false
-}
 
-variable "enable_rancher_vm" {
-  description = "Bật/Tắt máy chủ Rancher EC2 riêng biệt (mặc định tắt, Rancher chạy trực tiếp trên K8s)"
-  type        = bool
-  default     = false
-}
-
-variable "rancher_instance_type" {
-  description = "Loại máy chủ EC2 cho Rancher Management Server nếu bật VM riêng"
-  type        = string
-  default     = "c7i-flex.large"
-}
-
-variable "wazuh_instance_type" {
-  description = "Loại máy chủ EC2 cho Wazuh SIEM Server nếu bật"
-  type        = string
-  default     = "t3.small"
-}

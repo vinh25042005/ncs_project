@@ -46,20 +46,9 @@
 
 - name: "(gateway) Logrotate cho Suricata eve.json (tránh đầy đĩa)"
   ansible.builtin.copy:
+    src: suricata-eve.logrotate
     dest: /etc/logrotate.d/suricata-eve
     mode: "0644"
-    content: |
-      /var/log/suricata/eve.json {
-        daily
-        rotate 3
-        size 50M
-        compress
-        missingok
-        nocreate
-        postrotate
-          systemctl kill -s HUP suricata 2>/dev/null || true
-        endscript
-      }
   when: wazuh_agent_suricata | bool
 
 - name: Bật & chạy wazuh-agent

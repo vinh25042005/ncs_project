@@ -20,12 +20,7 @@ output "rancher_dashboard_url" {
 
 output "wazuh_siem_dashboard_url" {
   description = "URL truy cập Wazuh SIEM Dashboard (qua Gateway Port 8443)"
-  value       = var.enable_wazuh ? "https://${module.compute.wazuh_public_ip}" : "https://${module.compute.pfsense_public_ip}:8443"
-}
-
-output "rancher_vm_dashboard_url" {
-  description = "URL truy cập Rancher VM riêng biệt (nếu bật)"
-  value       = var.enable_rancher_vm ? "https://${module.compute.rancher_public_ip}" : "Đang chạy trực tiếp trên K8s Cluster"
+  value       = "https://${module.compute.pfsense_public_ip}:8443"
 }
 
 output "k8s_master_private_ip" {
@@ -38,28 +33,10 @@ output "k8s_worker_private_ips" {
   value       = module.compute.k8s_worker_private_ips
 }
 
-# Aliases for backward compatibility
-output "k3s_master_private_ip" {
-  description = "Alias for backward compatibility"
-  value       = module.compute.k8s_master_private_ip
-}
-
-output "k3s_worker_private_ips" {
-  description = "Alias for backward compatibility"
-  value       = module.compute.k8s_worker_private_ips
-}
-
-output "rancher_k3s_dashboard_url" {
-  description = "Alias for backward compatibility"
-  value       = "https://${module.compute.pfsense_public_ip}:7443"
-}
-
 output "ssh_commands" {
   description = "Lệnh SSH mẫu"
   value = {
     pfsense_gateway = "ssh -i ~/.ssh/${var.key_name}.pem ubuntu@${module.compute.pfsense_public_ip}"
-    rancher_server  = "ssh -i ~/.ssh/${var.key_name}.pem ubuntu@${module.compute.rancher_public_ip}"
-    wazuh_siem      = "ssh -i ~/.ssh/${var.key_name}.pem ubuntu@${module.compute.wazuh_public_ip}"
     k8s_master      = "ssh -i ~/.ssh/${var.key_name}.pem -J ubuntu@${module.compute.pfsense_public_ip} ubuntu@${module.compute.k8s_master_private_ip}"
   }
 }

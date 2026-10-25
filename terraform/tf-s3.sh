@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-# Script tiện ích đồng bộ file biến .tfvars từ/lên S3 và chạy Terraform
+#!/bin/bash
 set -e
 
 # Đọc tên bucket từ backend trong main.tf

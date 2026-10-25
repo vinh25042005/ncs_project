@@ -1,10 +1,6 @@
 #!/bin/bash
 set -e
-
-# ==============================================================================
 # Script tự động triển khai toàn bộ hệ thống: Terraform + Ansible Kubeadm K8s
-# NCS Project: Multi-AZ Kubeadm Cluster with pfSense & Online Boutique
-# ==============================================================================
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SSH_KEY="$HOME/.ssh/ncs-key.pem"

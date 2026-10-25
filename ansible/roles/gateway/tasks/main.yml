@@ -12,30 +12,21 @@
 
 - name: disable.conf — tắt tất cả trước
   ansible.builtin.copy:
+    src: disable.conf
     dest: /etc/suricata/disable.conf
-    content: "re:.\n"
     mode: "0644"
 
 - name: enable.conf — bật nhóm quét & tấn công web
   ansible.builtin.copy:
+    src: enable.conf
     dest: /etc/suricata/enable.conf
     mode: "0644"
-    content: |
-      group:emerging-scan.rules
-      group:emerging-web_server.rules
-      group:emerging-user_agents.rules
-      group:emerging-attack_response.rules
 
 - name: drop.conf — chuyển nhóm quét/web sang DROP (chỉ khi IPS)
-  ansible.builtin.copy:
+  ansible.builtin.template:
+    src: drop.conf.j2
     dest: /etc/suricata/drop.conf
     mode: "0644"
-    content: |
-      # drop.conf: nhom luat chuyen sang DROP (rong = khong drop nhom nao)
-      {% if gateway_suricata_ips | bool %}
-      group:emerging-scan.rules
-      group:emerging-web_server.rules
-      {% endif %}
 
 - name: Tải & biên dịch bộ luật ET Open (chỉ nhóm đã bật)
   ansible.builtin.command: suricata-update --no-test --no-reload
@@ -67,13 +58,10 @@
     mode: "0755"
 
 - name: Override ExecStart — af-packet (phát hiện) hoặc NFQUEUE -q 0 (chặn)
-  ansible.builtin.copy:
+  ansible.builtin.template:
+    src: suricata-override.conf.j2
     dest: /etc/systemd/system/suricata.service.d/override.conf
     mode: "0644"
-    content: |
-      [Service]
-      ExecStart=
-      ExecStart=/usr/bin/suricata -D {{ '-q 0' if gateway_suricata_ips | bool else '--af-packet' }} -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid
 
 - name: Nạp lại systemd và khởi động lại Suricata
   ansible.builtin.systemd_service:

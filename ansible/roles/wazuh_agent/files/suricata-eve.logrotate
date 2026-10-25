@@ -1,0 +1,11 @@
+/var/log/suricata/eve.json {
+  daily
+  rotate 3
+  size 50M
+  compress
+  missingok
+  nocreate
+  postrotate
+    systemctl kill -s HUP suricata 2>/dev/null || true
+  endscript
+}

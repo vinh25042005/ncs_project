@@ -1,8 +1,6 @@
 ---
 # Role: common — Cấu hình OS, containerd, swap đệm và cài đặt kubeadm/kubelet/kubectl
-# Áp dụng cho toàn bộ các node trong cụm (Master + Workers)
-# =================================================================================
-
+# Áp dụng cho toàn bộ các node trong cụm 
 - name: Đợi và giải phóng tiến trình apt lock nếu có
   shell: |
     systemctl stop unattended-upgrades 2>/dev/null || true
@@ -15,10 +13,9 @@
 
 - name: Nạp kernel modules cho Kubernetes và containerd
   copy:
+    src: k8s-modules.conf
     dest: /etc/modules-load.d/k8s.conf
-    content: |
-      overlay
-      br_netfilter
+    mode: '0644'
 
 - name: Kích hoạt kernel modules
   modprobe:
@@ -30,17 +27,15 @@
 
 - name: Cấu hình sysctl cho mạng Kubernetes
   copy:
+    src: 99-kubernetes.conf
     dest: /etc/sysctl.d/99-kubernetes.conf
-    content: |
-      net.bridge.bridge-nf-call-iptables = 1
-      net.bridge.bridge-nf-call-ip6tables = 1
-      net.ipv4.ip_forward = 1
+    mode: '0644'
 
 - name: Áp dụng sysctl
   command: sysctl --system
   changed_when: false
 
-- name: Cấu hình 2GB Swapfile làm bộ nhớ đệm an toàn
+- name: Cấu hình 2GB Swapfile 
   shell: |
     if [ ! -f /swapfile ]; then
       fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
@@ -91,11 +86,11 @@
     curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
   changed_when: false
 
-- name: Thêm kho apt chính thức của Kubernetes
-  copy:
+- name: Thêm kho apt của Kubernetes
+  template:
+    src: kubernetes.list.j2
     dest: /etc/apt/sources.list.d/kubernetes.list
-    content: |
-      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /
+    mode: '0644'
 
 - name: Cập nhật apt cache và cài đặt kubelet, kubeadm, kubectl
   apt:
@@ -106,7 +101,7 @@
     state: present
     update_cache: yes
 
-- name: Khóa phiên bản kubelet, kubeadm, kubectl (tránh tự động update)
+- name: Khóa phiên bản kubelet, kubeadm, kubectl
   dpkg_selections:
     name: "{{ item }}"
     selection: hold
@@ -115,9 +110,9 @@
     - kubeadm
     - kubectl
 
-- name: "Cấu hình Kubelet cho phép Swap (failSwapOn: false)"
+- name: "Cấu hình Kubelet cho phép Swap"
   copy:
+    src: kubelet
     dest: /etc/default/kubelet
-    content: |
-      KUBELET_EXTRA_ARGS="--fail-swap-on=false"
+    mode: '0644'
   notify: restart kubelet

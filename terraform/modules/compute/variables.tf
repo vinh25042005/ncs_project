@@ -40,15 +40,7 @@ variable "k8s_sg_id" {
   type        = string
 }
 
-variable "wazuh_sg_id" {
-  description = "ID của Security Group dành cho Wazuh SIEM"
-  type        = string
-}
 
-variable "rancher_sg_id" {
-  description = "ID của Security Group dành cho Rancher Management Server"
-  type        = string
-}
 
 variable "pfsense_ami_id" {
   description = "AMI ID của pfSense Marketplace (để trống sẽ dùng Ubuntu Gateway + Suricata)"
@@ -86,26 +78,4 @@ variable "worker_count" {
   default     = 2
 }
 
-variable "enable_wazuh" {
-  description = "Bật/Tắt máy chủ Wazuh SIEM EC2 riêng biệt (mặc định tắt khi cài chung trên Master)"
-  type        = bool
-  default     = false
-}
 
-variable "enable_rancher_vm" {
-  description = "Bật/Tắt máy chủ Rancher EC2 riêng biệt (mặc định tắt, Rancher chạy trực tiếp trên K8s)"
-  type        = bool
-  default     = false
-}
-
-variable "rancher_instance_type" {
-  description = "Loại máy chủ EC2 cho Rancher Management Server nếu bật VM riêng"
-  type        = string
-  default     = "c7i-flex.large"
-}
-
-variable "wazuh_instance_type" {
-  description = "Loại máy chủ EC2 cho Wazuh SIEM Server nếu bật"
-  type        = string
-  default     = "t3.small"
-}

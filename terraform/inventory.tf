@@ -4,8 +4,6 @@ resource "local_file" "ansible_inventory" {
   filename        = "${path.module}/../ansible/inventory.ini"
   file_permission = "0644"
   content         = <<-EOF
-# Ansible Inventory for NCS Project K8s Cluster (Kubeadm)
-# Tự động sinh bởi Terraform
 
 [gateway]
 pfsense-gateway ansible_host=${module.compute.pfsense_public_ip}
@@ -33,8 +31,6 @@ resource "local_file" "ansible_inventory_bastion" {
   filename        = "${path.module}/../ansible/inventory-bastion.ini"
   file_permission = "0644"
   content         = <<-EOF
-# Ansible Inventory chạy trực tiếp từ pfSense Gateway (Không cần ProxyJump)
-# Tự động sinh bởi Terraform
 
 [gateway]
 pfsense-gateway ansible_host=localhost ansible_connection=local
