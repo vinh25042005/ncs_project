@@ -107,11 +107,13 @@ kubectl get hpa frontend -w
 
 \begin{table}[H]
     \centering
+    \small
+    \renewcommand{\arraystretch}{1.25}
     \caption{Diễn biến co giãn của Pods theo mức độ tải CPU}
     \label{tab:hpa_test}
     \begin{tabularx}{\textwidth}{l c c c X}
         \toprule
-        \textbf{Thời điểm} & \textbf{CPU Thực tế / Ngưỡng} & \textbf{Số Pod hiện tại} & \textbf{Số Pod mục tiêu} & \textbf{Trạng thái hệ thống} \\
+        \textbf{Thời điểm} & \textbf{CPU / Ngưỡng} & \textbf{Pod hiện tại} & \textbf{Pod mục tiêu} & \textbf{Trạng thái hệ thống} \\
         \midrule
         Phút 0 & 12\% / 60\% & 1 & 1 & Tải bình thường, 1 Pod duy nhất. \\
         Phút 2 & 84\% / 60\% & 1 & 2 & Kích hoạt chính sách tăng Pod (Scale up). \\

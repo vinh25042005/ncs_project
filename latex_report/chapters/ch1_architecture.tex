@@ -16,11 +16,13 @@ Toàn bộ hạ tầng mạng được bao bọc trong một đám mây ảo ri�
 
 \begin{table}[H]
     \centering
+    \small
+    \renewcommand{\arraystretch}{1.25}
     \caption{Bảng phân bổ không gian địa chỉ IP và Subnet trên AWS}
     \label{tab:subnets}
-    \begin{tabularx}{\textwidth}{l p{2.5cm} l l X}
+    \begin{tabularx}{\textwidth}{l l l l X}
         \toprule
-        \textbf{Subnet} & \textbf{Vùng sẵn sàng} & \textbf{Dải CIDR} & \textbf{Loại mạng} & \textbf{Mục đích sử dụng} \\
+        \textbf{Tên Subnet} & \textbf{Vùng AZ} & \textbf{Dải CIDR} & \textbf{Loại mạng} & \textbf{Mục đích sử dụng} \\
         \midrule
         \texttt{public-subnet} & \texttt{ap-southeast-1a} & \texttt{10.0.1.0/24} & Public & Chứa Edge Gateway, tiếp nhận lưu lượng từ Internet \\
         \texttt{private-subnet-a} & \texttt{ap-southeast-1a} & \texttt{10.0.10.0/24} & Private & Cụm K8s Master và Worker 1 \\
@@ -47,16 +49,18 @@ Hạ tầng áp dụng 2 Security Group độc lập nhằm thực hiện nguyê
 
 \begin{table}[H]
     \centering
+    \small
+    \renewcommand{\arraystretch}{1.25}
     \caption{Bảng phân bổ cổng dịch vụ và quy tắc chuyển tiếp NAT}
     \label{tab:port_mapping}
     \begin{tabularx}{\textwidth}{l c c l X}
         \toprule
-        \textbf{Tên Dịch Vụ} & \textbf{Cổng External} & \textbf{Giao Thức} & \textbf{Đích Internal (DNAT)} & \textbf{Mô Tả Chức Năng} \\
+        \textbf{Tên Dịch Vụ} & \textbf{Cổng Ext} & \textbf{Giao thức} & \textbf{Đích Internal (DNAT)} & \textbf{Mô Tả Chức Năng} \\
         \midrule
-        \textbf{Online Boutique} & \textbf{80} & HTTP & \texttt{10.0.10.10:80} & Ứng dụng web bán hàng thương mại điện tử \\
-        \textbf{Rancher Server} & \textbf{7443} & HTTPS & \texttt{10.0.10.10:30443} & Giao diện đồ họa quản trị tập trung cụm K8s \\
-        \textbf{Wazuh SIEM} & \textbf{8443} & HTTPS & \texttt{10.0.10.10:55000} & Giao tiếp REST API \& Quản lý an ninh SOC \\
-        \textbf{SSH Bastion} & \textbf{22} & SSH & Trực tiếp tại Gateway & Quản trị dòng lệnh máy chủ an toàn qua khóa RSA \\
+        \textbf{Online Boutique} & \textbf{80} & HTTP & \texttt{10.0.10.10:80} & Ứng dụng web thương mại điện tử \\
+        \textbf{Rancher Server} & \textbf{7443} & HTTPS & \texttt{10.0.10.10:30443} & Giao diện quản trị tập trung cụm K8s \\
+        \textbf{Wazuh SIEM} & \textbf{8443} & HTTPS & \texttt{10.0.10.10:55000} & Giao tiếp REST API \& Giám sát an ninh \\
+        \textbf{SSH Bastion} & \textbf{22} & SSH & Trực tiếp tại Gateway & Quản trị dòng lệnh máy chủ qua khóa RSA \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -73,6 +77,8 @@ Hệ thống được thiết kế và phân bổ cấu hình máy chủ ảo Am
 
 \begin{table}[H]
     \centering
+    \small
+    \renewcommand{\arraystretch}{1.25}
     \caption{Bảng phân bổ tài nguyên máy chủ EC2 trong hệ thống}
     \label{tab:ec2_resources}
     \begin{tabularx}{\textwidth}{l l c c c X}
