@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 880" width="1440" height="880">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 800" width="1440" height="800">
   <defs>
     <filter id="shadow" x="-3%" y="-3%" width="106%" height="108%" filterUnits="userSpaceOnUse">
       <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#64748b" flood-opacity="0.10" />
@@ -34,40 +34,13 @@
   </style>
 
   <!-- Canvas Background -->
-  <rect width="1440" height="880" fill="#ffffff" />
-  <rect x="12" y="12" width="1416" height="856" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.2" />
+  <rect width="1440" height="800" fill="#ffffff" />
+  <rect x="12" y="12" width="1416" height="776" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.2" />
 
   <!-- ============================================================================== -->
-  <!-- 1. HEADER: TITLE & INGRESS ACTION BUTTONS                                      -->
+  <!-- 1. TOP INGRESS FLOW: LAPTOPS -> INTERNET CLOUD -> GATEWAY                      -->
   <!-- ============================================================================== -->
-  <g transform="translate(36, 36)">
-    <text x="0" y="0" class="title">Chương 1. Kiến trúc hệ thống</text>
-    <text x="0" y="18" class="subtitle">An ninh hạ tầng Cloud Native: AWS VPC, Gateway Suricata IDS, Upstream K8s v1.31, Rancher, Wazuh SIEM</text>
-  </g>
-
-  <!-- 3 Action Pills -->
-  <g transform="translate(705, 22)">
-    <g transform="translate(0, 0)">
-      <rect width="215" height="26" rx="13" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2" />
-      <circle cx="13" cy="13" r="4.5" fill="#10b981" />
-      <text x="24" y="17" class="pill-text" fill="#047857">1. TRUY CẬP WEB (CỔNG 80)</text>
-    </g>
-    <g transform="translate(225, 0)">
-      <rect width="245" height="26" rx="13" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2" />
-      <circle cx="13" cy="13" r="4.5" fill="#3b82f6" />
-      <text x="24" y="17" class="pill-text" fill="#1d4ed8">2. QUẢN TRỊ RANCHER &amp; SIEM (7443/8443)</text>
-    </g>
-    <g transform="translate(480, 0)">
-      <rect width="215" height="26" rx="13" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.2" />
-      <circle cx="13" cy="13" r="4.5" fill="#8b5cf6" />
-      <text x="24" y="17" class="pill-text" fill="#6d28d9">3. SSH BASTION QUẢN TRỊ (CỔNG 22)</text>
-    </g>
-  </g>
-
-  <!-- ============================================================================== -->
-  <!-- 2. TOP INGRESS FLOW: LAPTOPS -> INTERNET CLOUD -> GATEWAY                      -->
-  <!-- ============================================================================== -->
-  <g transform="translate(180, 72)">
+  <g transform="translate(180, 24)">
     <!-- Client Laptop 1 -->
     <g transform="translate(0, 0)">
       <rect width="125" height="46" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1" filter="url(#shadow-sm)"/>
@@ -91,19 +64,19 @@
       <rect x="15" y="6" width="105" height="22" rx="3" fill="#6366f1" />
       <rect x="19" y="9" width="97" height="16" rx="2" fill="#e0e7ff" />
       <polygon points="52,28 83,28 88,36 47,36" fill="#94a3b8" />
-      <text x="67" y="42" font-size="8.5" font-weight="700" fill="#4338ca" text-anchor="middle">Admin / SecOps (SSH)</text>
+      <text x="67" y="42" font-size="8.5" font-weight="700" fill="#4338ca" text-anchor="middle">Admin</text>
     </g>
 
     <!-- Flow Arrows -->
     <path d="M 125,23 L 285,23" stroke="#059669" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-green)" />
     <path d="M 565,23 L 415,23" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-purple)" />
-    <path d="M 353,52 L 353,75" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-blue)" />
+    <path d="M 353,52 L 353,74" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-blue)" />
   </g>
 
   <!-- ============================================================================== -->
-  <!-- 3. MAIN CONTAINER: AMAZON VPC (Singapore ap-southeast-1)                       -->
+  <!-- 2. MAIN CONTAINER: AMAZON VPC (Singapore ap-southeast-1)                       -->
   <!-- ============================================================================== -->
-  <g transform="translate(36, 155)">
+  <g transform="translate(36, 100)">
     <!-- VPC Boundary -->
     <rect width="920" height="540" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,4" />
     
@@ -192,45 +165,41 @@
         <text x="120" y="14" class="code" fill="#475569">(IP: 10.0.10.10 • c7i-flex.large • 2 vCPU, 4GB RAM + 4GB Swap)</text>
 
         <!-- 4 Grid Items on Master -->
-        <g transform="translate(6, 25)">
+        <g transform="translate(6, 26)">
           <!-- Comp 1: K8s Core -->
           <g transform="translate(0, 0)">
-            <rect width="214" height="60" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1" />
-            <rect x="5" y="9" width="30" height="42" rx="3" fill="#3b82f6" />
-            <text x="20" y="34" font-size="11" font-weight="900" fill="#ffffff" text-anchor="middle">K8s</text>
-            <text x="40" y="19" class="card-title">Upstream K8s v1.31</text>
-            <text x="40" y="33" class="card-sub">Control Plane • API Server</text>
-            <text x="40" y="47" class="code" fill="#2563eb">CoreDNS • Metrics • HPA</text>
+            <rect width="214" height="58" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1" />
+            <rect x="6" y="9" width="30" height="40" rx="3" fill="#3b82f6" />
+            <text x="21" y="33" font-size="11" font-weight="900" fill="#ffffff" text-anchor="middle">K8s</text>
+            <text x="44" y="24" class="card-title">Upstream K8s v1.31</text>
+            <text x="44" y="42" class="code" fill="#2563eb">CoreDNS • Metrics • HPA</text>
           </g>
 
           <!-- Comp 2: Ingress NGINX -->
           <g transform="translate(222, 0)">
-            <rect width="214" height="60" rx="4" fill="#ffffff" stroke="#86efac" stroke-width="1" />
-            <rect x="5" y="9" width="30" height="42" rx="3" fill="#16a34a" />
-            <text x="20" y="34" font-size="10" font-weight="900" fill="#ffffff" text-anchor="middle">NGX</text>
-            <text x="40" y="19" class="card-title">Ingress-NGINX</text>
-            <text x="40" y="33" class="card-sub">HostNetwork L7 Reverse Proxy</text>
-            <text x="40" y="47" class="code" fill="#15803d">Lắng nghe Port 80 &amp; 443</text>
+            <rect width="214" height="58" rx="4" fill="#ffffff" stroke="#86efac" stroke-width="1" />
+            <rect x="6" y="9" width="30" height="40" rx="3" fill="#16a34a" />
+            <text x="21" y="33" font-size="10" font-weight="900" fill="#ffffff" text-anchor="middle">NGX</text>
+            <text x="44" y="24" class="card-title">Ingress-NGINX</text>
+            <text x="44" y="42" class="code" fill="#15803d">Lắng nghe Port 80 &amp; 443</text>
           </g>
 
           <!-- Comp 3: Rancher Manager -->
-          <g transform="translate(0, 68)">
-            <rect width="214" height="60" rx="4" fill="#ffffff" stroke="#c084fc" stroke-width="1" />
-            <rect x="5" y="9" width="30" height="42" rx="3" fill="#7c3aed" />
-            <text x="20" y="34" font-size="9.5" font-weight="900" fill="#ffffff" text-anchor="middle">RAN</text>
-            <text x="40" y="19" class="card-title">Rancher Server v2.15.2</text>
-            <text x="40" y="33" class="card-sub">Giao diện Web UI quản trị cụm</text>
-            <text x="40" y="47" class="code" fill="#6d28d9">NodePort 30443 (DNAT: 7443)</text>
+          <g transform="translate(0, 66)">
+            <rect width="214" height="58" rx="4" fill="#ffffff" stroke="#c084fc" stroke-width="1" />
+            <rect x="6" y="9" width="30" height="40" rx="3" fill="#7c3aed" />
+            <text x="21" y="33" font-size="9.5" font-weight="900" fill="#ffffff" text-anchor="middle">RAN</text>
+            <text x="44" y="24" class="card-title">Rancher Server v2.15.2</text>
+            <text x="44" y="42" class="code" fill="#6d28d9">NodePort 30443 (DNAT: 7443)</text>
           </g>
 
           <!-- Comp 4: Wazuh SIEM -->
-          <g transform="translate(222, 68)">
-            <rect width="214" height="60" rx="4" fill="#ffffff" stroke="#f472b6" stroke-width="1" />
-            <rect x="5" y="9" width="30" height="42" rx="3" fill="#db2777" />
-            <text x="20" y="34" font-size="9.5" font-weight="900" fill="#ffffff" text-anchor="middle">SOC</text>
-            <text x="40" y="19" class="card-title">Wazuh SIEM Manager</text>
-            <text x="40" y="33" class="card-sub">Trung tâm tương quan SOC</text>
-            <text x="40" y="47" class="code" fill="#be185d">REST API 55000 (DNAT: 8443)</text>
+          <g transform="translate(222, 66)">
+            <rect width="214" height="58" rx="4" fill="#ffffff" stroke="#f472b6" stroke-width="1" />
+            <rect x="6" y="9" width="30" height="40" rx="3" fill="#db2777" />
+            <text x="21" y="33" font-size="9.5" font-weight="900" fill="#ffffff" text-anchor="middle">SOC</text>
+            <text x="44" y="24" class="card-title">Wazuh SIEM Manager</text>
+            <text x="44" y="42" class="code" fill="#be185d">REST API 55000 (DNAT: 8443)</text>
           </g>
         </g>
       </g>
@@ -256,8 +225,8 @@
           </g>
           <g transform="translate(0, 88)">
             <rect width="434" height="38" rx="4" fill="#ffffff" stroke="#6366f1" stroke-width="1.1" />
-            <text x="10" y="15" class="card-title" fill="#4338ca">• Điều phối Pod tự động (Kube-Scheduler):</text>
-            <text x="10" y="28" class="code" fill="#334155">Kube-Scheduler tự động phân bổ Pods theo tài nguyên CPU/RAM &amp; Anti-Affinity</text>
+            <text x="10" y="15" class="card-title" fill="#4338ca">• Microservices Pods:</text>
+            <text x="10" y="28" class="code" fill="#334155">K8s tự động điều phối &amp; vận hành các Pods ứng dụng</text>
           </g>
         </g>
       </g>
@@ -300,8 +269,8 @@
 
           <g transform="translate(0, 168)">
             <rect width="362" height="74" rx="4" fill="#ffffff" stroke="#6366f1" stroke-width="1.1" />
-            <text x="12" y="20" class="card-title" fill="#4338ca">• Điều phối Pod tự động (Kube-Scheduler):</text>
-            <text x="12" y="38" class="card-sub">Kube-Scheduler tự động lập lịch và phân bổ Pods sang Worker 2</text>
+            <text x="12" y="20" class="card-title" fill="#4338ca">• Microservices Pods:</text>
+            <text x="12" y="38" class="card-sub">K8s tự động điều phối &amp; vận hành các Pods ứng dụng</text>
             <text x="12" y="56" class="code" fill="#334155">Cân bằng tải đồng đều với Worker 1 theo tài nguyên &amp; Affinity</text>
           </g>
         </g>
@@ -322,7 +291,7 @@
       <text x="12" y="16" class="box-title" fill="#92400e">LUỒNG HOẠT ĐỘNG CHÍNH</text>
 
       <g transform="translate(12, 32)">
-        <text x="0" y="10" font-size="10" font-weight="800" fill="#b45309">TRUY CẬP WEB (CỔNG 80 KHÔNG CẦN VPN):</text>
+        <text x="0" y="10" font-size="10" font-weight="800" fill="#b45309">TRUY CẬP WEB:</text>
         <text x="8" y="23" class="code" fill="#451a03">Khách hàng → Internet → Gateway DNAT 80</text>
         <text x="8" y="35" class="code" fill="#451a03">→ Ingress NGINX (Master) → Pod Frontend (Worker)</text>
 
@@ -339,7 +308,7 @@
       </g>
     </g>
 
-    <!-- CARD 2: BẢNG ĐỊA CHỈ & CỔNG DỊCH VỤ (BỎ DẤU NGOẶC THEO YÊU CẦU) -->
+    <!-- CARD 2: BẢNG ĐỊA CHỈ & CỔNG DỊCH VỤ -->
     <g transform="translate(0, 178)">
       <rect width="434" height="175" rx="6" fill="#faf5ff" stroke="#c4b5fd" stroke-width="1.2" filter="url(#shadow-sm)" />
       <rect width="434" height="24" rx="6" fill="#f3e8ff" />
@@ -382,7 +351,7 @@
 
     <!-- CARD 3: QUY TẮC AN NINH CHÍNH -->
     <g transform="translate(0, 365)">
-      <rect width="434" height="155" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.2" filter="url(#shadow-sm)" />
+      <rect width="434" height="165" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.2" filter="url(#shadow-sm)" />
       <rect width="434" height="24" rx="6" fill="#dcfce7" />
       <line x1="0" y1="24" x2="434" y2="24" stroke="#bbf7d0" stroke-width="1" />
       <text x="12" y="16" class="box-title" fill="#166534">QUY TẮC AN NINH CHÍNH</text>
@@ -390,20 +359,24 @@
       <g transform="translate(12, 32)">
         <g transform="translate(0, 0)">
           <circle cx="5" cy="5" r="3.5" fill="#16a34a" />
-          <text x="14" y="9" font-size="9" font-weight="700" fill="#14532d">Wazuh SIEM giám sát &amp; tương quan cảnh báo SOC</text>
-          <text x="14" y="21" class="card-sub">Wazuh Agent đẩy trực tiếp eve.json về Manager qua kênh mã hóa TLS.</text>
+          <text x="14" y="9" font-size="9" font-weight="700" fill="#14532d">Suricata IDS kiểm tra sâu gói tin DPI</text>
         </g>
-        <g transform="translate(0, 28)">
+        <g transform="translate(0, 20)">
+          <circle cx="5" cy="5" r="3.5" fill="#16a34a" />
+          <text x="14" y="9" font-size="9" font-weight="700" fill="#14532d">Wazuh SIEM giám sát &amp; tương quan cảnh báo SOC</text>
+          <text x="14" y="21" class="card-sub">Wazuh Agent đẩy trực tiếp eve.json về Manager.</text>
+        </g>
+        <g transform="translate(0, 48)">
           <circle cx="5" cy="5" r="3.5" fill="#16a34a" />
           <text x="14" y="9" font-size="9" font-weight="700" fill="#14532d">Zero-Trust NetworkPolicy cô lập thanh toán</text>
-          <text x="14" y="21" class="card-sub">Chỉ Checkout được gọi PaymentService, chặn đứng di chuyển ngang.</text>
+          <text x="14" y="21" class="card-sub">Chỉ Checkout được gọi PaymentService, ...</text>
         </g>
-        <g transform="translate(0, 56)">
+        <g transform="translate(0, 76)">
           <circle cx="5" cy="5" r="3.5" fill="#16a34a" />
           <text x="14" y="9" font-size="9" font-weight="700" fill="#14532d">Khóa 100% cổng Internet trực tiếp vào cụm K8s</text>
           <text x="14" y="21" class="card-sub">Security Group K8s chỉ chấp nhận luồng từ LAN Gateway 10.0.10.254.</text>
         </g>
-        <g transform="translate(0, 84)">
+        <g transform="translate(0, 104)">
           <circle cx="5" cy="5" r="3.5" fill="#16a34a" />
           <text x="14" y="9" font-size="9" font-weight="700" fill="#14532d">Multi-AZ High Availability &amp; HPA</text>
           <text x="14" y="21" class="card-sub">Pod xếp đều 2 Vùng sẵn sàng, HPA kích hoạt khi CPU vượt 60%.</text>
@@ -413,12 +386,12 @@
   </g>
 
   <!-- ============================================================================== -->
-  <!-- 5. BOTTOM SECTION: LUỒNG KẾT NỐI (CONNECTION FLOW)                             -->
+  <!-- 5. BOTTOM SECTION: LUỒNG KẾT NỐI                                               -->
   <!-- ============================================================================== -->
-  <g transform="translate(36, 715)">
+  <g transform="translate(36, 655)">
     <rect width="1368" height="120" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" filter="url(#shadow-sm)" />
     <rect width="1368" height="22" rx="6" fill="#e2e8f0" />
-    <text x="12" y="15" font-size="10.5" font-weight="800" fill="#0f172a">LUỒNG KẾT NỐI HỆ THỐNG (CONNECTION FLOW)</text>
+    <text x="12" y="15" font-size="10.5" font-weight="800" fill="#0f172a">LUỒNG KẾT NỐI HỆ THỐNG</text>
 
     <g transform="translate(16, 28)">
       <!-- Flow 1 -->
@@ -443,8 +416,6 @@
 
         <rect x="594" y="0" width="160" height="22" rx="3" fill="#ecfdf5" stroke="#10b981" stroke-width="1" />
         <text x="674" y="15" font-size="8.5" font-weight="700" fill="#047857" text-anchor="middle">Frontend Pod (Worker 1)</text>
-
-        <text x="768" y="15" class="code" font-size="9" fill="#059669">➔ Phục vụ gian hàng Online Boutique</text>
       </g>
 
       <!-- Flow 2 -->
@@ -469,8 +440,6 @@
 
         <rect x="594" y="0" width="160" height="22" rx="3" fill="#faf5ff" stroke="#8b5cf6" stroke-width="1" />
         <text x="674" y="15" font-size="8.5" font-weight="700" fill="#7c3aed" text-anchor="middle">Rancher Control Panel</text>
-
-        <text x="768" y="15" class="code" font-size="9" fill="#7c3aed">➔ Quản lý cụm Kubernetes tập trung trực quan</text>
       </g>
 
       <!-- Flow 3 -->
@@ -495,8 +464,6 @@
 
         <rect x="629" y="0" width="160" height="22" rx="3" fill="#fdf2f8" stroke="#db2777" stroke-width="1" />
         <text x="709" y="15" font-size="8.5" font-weight="700" fill="#be185d" text-anchor="middle">Wazuh Manager (Master)</text>
-
-        <text x="800" y="15" class="code" font-size="9" fill="#be185d">➔ Tương quan cảnh báo an ninh thời gian thực</text>
       </g>
     </g>
   </g>
