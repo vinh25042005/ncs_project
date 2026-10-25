@@ -11,6 +11,35 @@ Hệ thống được thiết kế và triển khai trên nền tảng đám mâ
     \label{fig:architecture_diagram}
 \end{figure}
 
+\section{Bảng tóm tắt các dịch vụ ứng dụng triển khai}
+Ứng dụng thương mại điện tử Google Online Boutique bao gồm 11 vi dịch vụ độc lập kết hợp cùng 1 dịch vụ sinh tải (\texttt{loadgenerator}). Các dịch vụ được đóng gói dưới dạng container Docker, vận hành trên cụm Kubernetes v1.31 và giao tiếp nội bộ qua giao thức gRPC hiệu năng cao hoặc HTTP REST:
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.2}
+    \caption{Bảng tóm tắt các dịch vụ ứng dụng Online Boutique triển khai trên cụm K8s}
+    \label{tab:services_summary}
+    \begin{tabularx}{\textwidth}{l l c l X}
+        \toprule
+        \textbf{Dịch vụ (Service)} & \textbf{Ngôn ngữ} & \textbf{Cổng} & \textbf{Giao thức} & \textbf{Vai trò chức năng} \\
+        \midrule
+        \texttt{frontend} & Go & 80 & HTTP & Giao diện web người dùng, hiển thị trang chủ và sản phẩm \\
+        \texttt{cartservice} & C\# (.NET) & 7070 & gRPC & Quản lý thông tin giỏ hàng của từng phiên người dùng \\
+        \texttt{redis-cart} & Redis & 6379 & TCP & Bộ nhớ đệm in-memory lưu trữ tạm thời giỏ hàng \\
+        \texttt{productcatalogservice} & Go & 3550 & gRPC & Cung cấp danh mục sản phẩm, tìm kiếm và chi tiết món đồ \\
+        \texttt{checkoutservice} & Go & 5050 & gRPC & Tiếp nhận đơn hàng, điều phối thanh toán và gửi email \\
+        \texttt{paymentservice} & Node.js & 50051 & gRPC & Xử lý thanh toán thẻ tín dụng (bảo vệ bởi Zero-Trust NetPol) \\
+        \texttt{currencyservice} & Node.js & 7000 & gRPC & Chuyển đổi và tính toán tỷ giá ngoại tệ theo thời gian thực \\
+        \texttt{emailservice} & Python & 8080 & gRPC & Soạn thảo và gửi email xác nhận đặt hàng thành công \\
+        \texttt{shippingservice} & Go & 50051 & gRPC & Tính cước phí vận chuyển và xuất mã vận đơn giao hàng \\
+        \texttt{recommendationservice} & Python & 8080 & gRPC & Đề xuất gợi ý các sản phẩm liên quan theo ngữ cảnh \\
+        \texttt{adservice} & Java & 9555 & gRPC & Hiển thị các mẩu tin quảng cáo và khuyến mãi sản phẩm \\
+        \texttt{loadgenerator} & Python & -- & HTTP & Giả lập lưu lượng truy cập liên tục để kích hoạt HPA \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
 \section{Phân vùng mạng và định tuyến (VPC \& Subnets)}
 Toàn bộ hạ tầng mạng được bao bọc trong một đám mây ảo riêng biệt \textbf{Amazon VPC} (\texttt{ncs-project-vpc}) với dải mạng \texttt{10.0.0.0/16}. Hạ tầng mạng được chia thành 3 Subnet chính trải dài trên 2 Vùng sẵn sàng (\textit{Availability Zones - AZ}) nhằm đảm bảo khả năng chịu lỗi và tính sẵn sàng cao:
 

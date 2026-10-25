@@ -11,22 +11,23 @@
    * 1.4. Quy hoạch & Phân bổ tài nguyên máy chủ Cloud
 2. [KIẾN TRÚC & TOPOLOGY HỆ THỐNG](#2-kiến-trúc--topology-hệ-thống)
    * 2.1. Sơ đồ kiến trúc tổng thể (Architecture Topology)
-   * 2.2. Phân vùng mạng & Địa chỉ IP (Network Segmentation)
-   * 2.3. Bảng phân bổ cổng dịch vụ (Port Mapping Table)
-   * 2.4. Luồng xử lý dữ liệu & Giám sát an ninh (Traffic & Log Flow)
+   * 2.2. Bảng tóm tắt các dịch vụ ứng dụng triển khai
+   * 2.3. Phân vùng mạng & Địa chỉ IP (Network Segmentation)
+   * 2.4. Bảng phân bổ cổng dịch vụ (Port Mapping Table)
+   * 2.5. Luồng xử lý dữ liệu & Giám sát an ninh (Traffic & Log Flow)
 3. [CHI TIẾT QUY TRÌNH TRIỂN KHAI TỪNG THÀNH PHẦN](#3-chi-tiết-quy-trình-triển-khai-từng-thành-phần)
    * 3.1. Khởi tạo hạ tầng mạng & Máy ảo AWS (Terraform IaC)
    * 3.2. Cấu hình pfSense/Linux Gateway & Suricata IDS/IPS
    * 3.3. Khởi tạo cụm Upstream Kubernetes v1.31 bằng Kubeadm & Flannel CNI
    * 3.4. Triển khai Rancher Management Server qua Helm Chart & NodePort
    * 3.5. Triển khai ứng dụng Google Online Boutique & Zero-Trust Network Policies
-   * 3.6. Cấu hình tự động co giãn Pod (Metrics Server & HPA v2)
+   * 3.6. Cấu hình HPA (Metrics Server & HPA v2)
    * 3.7. Cài đặt Wazuh SIEM All-in-One & Kết nối Wazuh Agent
 4. [KẾT QUẢ KIỂM THỬ TÍNH NĂNG HỆ THỐNG](#4-kết-quả-kiểm-thử-tính-năng-hệ-thống)
    * 4.1. Kiểm thử 1: Truy cập các giao diện Web Quản trị & Ứng dụng
    * 4.2. Kiểm thử 2: Mô phỏng tấn công mạng Web (Penetration Test)
    * 4.3. Kiểm thử 3: Giám sát & Tương quan cảnh báo trên Wazuh SIEM
-   * 4.4. Kiểm thử 4: Tự động co giãn Pods (HPA Stress Test)
+   * 4.4. Kiểm thử 4: Kiểm thử co giãn Pods (HPA Stress Test)
    * 4.5. Kiểm thử 5: Kiểm tra chính sách cách ly mạng Zero-Trust
 5. [KẾT LUẬN & HƯỚNG DẪN VẬN HÀNH](#5-kết-luận--hướng-dẫn-vận-hành)
 
@@ -111,46 +112,32 @@ Trong kỷ nguyên điện toán đám mây và kiến trúc vi dịch vụ (Mic
 
 ### 2.1. Sơ đồ kiến trúc tổng thể (Architecture Topology)
 
-```text
-                           [ INTERNET / ATTACKER / CLIENT ]
-                                          │
-                        Elastic IP WAN: 13.251.225.100
-                                          │
-    ┌─────────────────────────────────────▼─────────────────────────────────────┐
-    │                PFSENSE / LINUX EDGE GATEWAY (10.0.1.8)                    │
-    │  • Network Card: ens5 (WAN), ens6 (LAN 10.0.10.254)                       │
-    │  • Suricata IDS/IPS: AF-PACKET Deep Packet Inspection trên ens5           │
-    │  • Wazuh Agent: Giám sát /var/log/suricata/eve.json                       │
-    │  • Iptables NAT / DNAT Port Forwarding:                                   │
-    │      - Port 80   ──► 10.0.10.10:80    (Online Boutique Storefront)        │
-    │      - Port 7443 ──► 10.0.10.10:30443 (Rancher Management Server WebGUI)  │
-    │      - Port 8443 ──► 10.0.10.10:9443  (Wazuh SIEM Security Dashboard)     │
-    │      - Port 22   ──► SSH Bastion Host                                     │
-    └─────────────────────────────────────┬─────────────────────────────────────┘
-                                          │ Subnet LAN (10.0.10.0/24 & 10.0.11.0/24)
-                                          │
-             ┌────────────────────────────┴────────────────────────────┐
-             ▼                                                         ▼
-┌──────────────────────────────────────────┐    ┌──────────────────────────────────────────┐
-│        KUBERNETES MASTER NODE            │    │        KUBERNETES WORKER NODES           │
-│           (10.0.10.10)                   │    │    (Worker-1: 10.0.10.71, Worker-2)      │
-│  • Kubeadm Control Plane (v1.31.14)      │    │  • Kubelet & Flannel CNI (10.244.x.x)    │
-│  • Nginx Ingress Controller (HostNet)    │    │  • Workloads (Google Online Boutique):   │
-│  • Kubernetes Metrics Server             │    │      - frontend (Go) + HPA (1-5 Pods)    │
-│  • Rancher v2.15.2 (NodePort 30443)      │    │      - cartservice (C#) & redis-cart     │
-│  • Wazuh SIEM All-in-One:                │    │      - checkoutservice & paymentservice  │
-│      - Wazuh Indexer (Port 9200)         │    │      - productcatalogservice, shipping   │
-│      - Wazuh Manager (Port 1514/1515)    │    │      - currencyservice, emailservice     │
-│      - Wazuh Dashboard (Port 9443)       │    │      - recommendationservice, adservice  │
-│  • K8s API Server Audit Log (/var/log)   │    │      - loadgenerator (Locust stresser)   │
-└──────────────────────────────────────────┘    └──────────────────────────────────────────┘
-             │                                                         ▲
-             └────────────────── Flannel Overlay VXLAN ────────────────┘
-```
+![Sơ đồ kiến trúc tổng thể hệ thống an ninh hạ tầng Microservices trên AWS](architecture_diagram.png)
 
 ---
 
-### 2.2. Phân vùng mạng & Địa chỉ IP (Network Segmentation)
+### 2.2. Bảng tóm tắt các dịch vụ ứng dụng triển khai
+
+Ứng dụng thương mại điện tử Google Online Boutique bao gồm 11 vi dịch vụ độc lập kết hợp cùng 1 dịch vụ sinh tải (`loadgenerator`). Các dịch vụ được đóng gói dưới dạng container Docker, vận hành trên cụm Kubernetes v1.31 và giao tiếp nội bộ qua giao thức gRPC hiệu năng cao hoặc HTTP REST:
+
+| STT | Dịch vụ (Service) | Ngôn ngữ / Công nghệ | Cổng nội bộ | Giao thức | Vai trò chức năng trong hệ thống |
+| :---: | :--- | :--- | :---: | :---: | :--- |
+| **1** | `frontend` | Go | 80 | HTTP | Giao diện web người dùng, hiển thị trang chủ và sản phẩm |
+| **2** | `cartservice` | C# (.NET) | 7070 | gRPC | Quản lý thông tin giỏ hàng của từng phiên người dùng |
+| **3** | `redis-cart` | Redis | 6379 | TCP | Bộ nhớ đệm in-memory lưu trữ tạm thời giỏ hàng |
+| **4** | `productcatalogservice` | Go | 3550 | gRPC | Cung cấp danh mục sản phẩm, tìm kiếm và chi tiết món đồ |
+| **5** | `checkoutservice` | Go | 5050 | gRPC | Tiếp nhận đơn hàng, điều phối thanh toán và gửi email |
+| **6** | `paymentservice` | Node.js | 50051 | gRPC | Xử lý thanh toán thẻ tín dụng (bảo vệ bởi Zero-Trust NetPol) |
+| **7** | `currencyservice` | Node.js | 7000 | gRPC | Chuyển đổi và tính toán tỷ giá ngoại tệ theo thời gian thực |
+| **8** | `emailservice` | Python | 8080 | gRPC | Soạn thảo và gửi email xác nhận đặt hàng thành công |
+| **9** | `shippingservice` | Go | 50051 | gRPC | Tính cước phí vận chuyển và xuất mã vận đơn giao hàng |
+| **10** | `recommendationservice` | Python | 8080 | gRPC | Đề xuất gợi ý các sản phẩm liên quan theo ngữ cảnh |
+| **11** | `adservice` | Java | 9555 | gRPC | Hiển thị các mẩu tin quảng cáo và khuyến mãi sản phẩm |
+| **12** | `loadgenerator` | Python / Locust | -- | HTTP | Giả lập lưu lượng truy cập liên tục để kích hoạt HPA |
+
+---
+
+### 2.3. Phân vùng mạng & Địa chỉ IP (Network Segmentation)
 
 1. **VPC Mạng chính**: `10.0.0.0/16` trên AWS Region `ap-southeast-1` (Singapore).
 2. **Subnet Công cộng (Public WAN Subnet - `10.0.1.0/24`)**:
@@ -167,7 +154,7 @@ Trong kỷ nguyên điện toán đám mây và kiến trúc vi dịch vụ (Mic
 
 ---
 
-### 2.3. Bảng phân bổ cổng dịch vụ (Port Mapping Table)
+### 2.4. Bảng phân bổ cổng dịch vụ (Port Mapping Table)
 
 Để người dùng và quản trị viên có thể truy cập tất cả các dịch vụ thông qua **duy nhất một địa chỉ IP Public (`13.251.225.100`)** mà không bị xung đột, hệ thống phân bổ các cổng chuyên biệt như sau:
 
@@ -180,7 +167,7 @@ Trong kỷ nguyên điện toán đám mây và kiến trúc vi dịch vụ (Mic
 
 ---
 
-### 2.4. Luồng xử lý dữ liệu & Giám sát an ninh (Traffic & Log Flow)
+### 2.5. Luồng xử lý dữ liệu & Giám sát an ninh (Traffic & Log Flow)
 
 ```mermaid
 sequenceDiagram
@@ -307,7 +294,7 @@ Hạ tầng mạng và máy chủ được mã hóa toàn bộ dưới dạng Co
 
 ---
 
-### 3.6. Cấu hình tự động co giãn Pod (Metrics Server & HPA v2)
+### 3.6. Cấu hình HPA (Metrics Server & HPA v2)
 1. **Triển khai Metrics Server**:
    Áp dụng bản vá `--kubelet-insecure-tls` để Metrics Server thu thập dữ liệu tải CPU/RAM từ kubelet mà không bị chặn bởi chứng chỉ tự ký:
    ```bash
@@ -451,7 +438,7 @@ Kiểm tra nhật ký cảnh báo tương quan thời gian thực tại file `/v
 
 ---
 
-### 4.4. Kiểm thử 4: Tự động co giãn Pods (HPA Stress Test)
+### 4.4. Kiểm thử 4: Kiểm thử co giãn Pods (HPA Stress Test)
 1. **Thiết lập thử nghiệm**:
    Khởi chạy 6 phiên bản bộ sinh tải Locust đồng thời để tạo lưu lượng người dùng mua sắm liên tục.
 2. **Diễn biến đo đạc từ HPA**:

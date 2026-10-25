@@ -98,7 +98,7 @@ Oct 20 08:16:19 ip-10-0-1-69 sshd[11057]: pam_unix(sshd:session): session closed
 \end{lstlisting}
 \noindent \textbf{Đánh giá:} Luồng dữ liệu an ninh từ Gateway truyền về Master qua kênh TLS bảo mật hoạt động ổn định, cung cấp bức tranh giám sát an ninh tập trung toàn diện cho đội ngũ vận hành SOC.
 
-\section{Kiểm thử 4: Tự động co giãn Pods (HPA Stress Test)}
+\section{Kiểm thử 4: Kiểm thử co giãn Pods (HPA Stress Test)}
 Tạo áp lực tải CPU lên vi dịch vụ \texttt{frontend} thông qua công cụ phát tải \texttt{loadgenerator}:
 
 \begin{lstlisting}[language=bash, caption={Theo dõi tiến trình co giãn tự động của Pod qua HPA}]

@@ -100,7 +100,7 @@ Hệ thống tích hợp một ngăn xếp công nghệ toàn diện bao gồm c
     \item \textbf{Nhiệm vụ trong hệ thống:} Vận hành chu trình mua sắm trực tuyến hoàn chỉnh: duyệt hàng (\texttt{productcatalogservice}), quản lý giỏ hàng (\texttt{cartservice} \& \texttt{redis-cart}), thanh toán thẻ (\texttt{paymentservice}), tính toán tiền tệ (\texttt{currencyservice}), gửi thư xác nhận (\texttt{emailservice}) và tự sinh tải giả lập (\texttt{loadgenerator}).
 \end{itemize}
 
-\subsection{8. Tự động co giãn Pod (Horizontal Pod Autoscaler - HPA v2)}
+\subsection{8. Cơ chế HPA (Horizontal Pod Autoscaler v2)}
 \begin{itemize}
     \item \textbf{Tại sao cần:} Trong các đợt cao điểm mua sắm hoặc khi bị tấn công từ chối dịch vụ (DDoS), việc tăng giảm tài nguyên thủ công sẽ dẫn đến nghẽn dịch vụ hoặc lãng phí chi phí máy chủ.
     \item \textbf{Nhiệm vụ trong hệ thống:} Metrics-Server liên tục thu thập mức độ sử dụng CPU/RAM của các Pod; HPA tự động tính toán và điều chỉnh số lượng Pod bản sao (ví dụ: nhân rộng \texttt{frontend} từ 1 lên tối đa 10 bản sao) khi mức sử dụng CPU vượt ngưỡng 60\%.
