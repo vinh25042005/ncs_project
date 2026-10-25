@@ -1,0 +1,111 @@
+\chapter{Các Thành Phần Triển Khai \& Vai Trò Hệ Thống}
+\label{ch:components}
+
+Hệ thống tích hợp một ngăn xếp công nghệ toàn diện bao gồm các giải pháp hạ tầng mạng biên, bảo mật phát hiện xâm nhập, nền tảng điều phối container và giám sát an ninh tập trung. Chương này trình bày chi tiết từng thành phần, lý do lựa chọn và vai trò cụ thể của chúng trong hệ sinh thái an ninh.
+
+\section{Bảng tổng hợp các thành phần hệ thống}
+\begin{table}[H]
+    \centering
+    \caption{Tổng hợp các thành phần cốt lõi và nhiệm vụ trong hệ thống}
+    \label{tab:components_summary}
+    \begin{tabularx}{\textwidth}{l p{3.2cm} X}
+        \toprule
+        \textbf{Thành phần} & \textbf{Công nghệ / Phiên bản} & \textbf{Vai trò cốt lõi trong hệ thống} \\
+        \midrule
+        \textbf{Edge Gateway} & Linux Ubuntu Dual-ENI & Định tuyến NAT 2 tầng, bảo vệ mạng riêng, SSH Bastion. \\
+        \textbf{Suricata IDS} & Suricata 6.0 (af-packet) & Bắt gói tin tầng biên, phát hiện tấn công Web (SQLi, XSS...). \\
+        \textbf{Upstream K8s} & Kubernetes v1.31.14 & Nền tảng điều phối container gốc, quản trị vòng đời Pod. \\
+        \textbf{Ingress NGINX} & Ingress-NGINX Controller & Reverse Proxy L7, tiếp nhận và định tuyến lưu lượng Web. \\
+        \textbf{Rancher Server} & SUSE Rancher v2.15.2 & Bảng điều khiển quản trị K8s tập trung qua giao diện Web. \\
+        \textbf{Wazuh SIEM} & Wazuh Manager v4.14.9 & Trung tâm SOC thu thập, phân tích và tương quan cảnh báo. \\
+        \textbf{Online Boutique} & Google Demo 12 Services & Ứng dụng thương mại điện tử đa tầng làm đối tượng bảo vệ. \\
+        \textbf{Metrics-Server/HPA} & Kubernetes HPA v2 & Thu thập metrics tài nguyên, tự động co giãn Pod theo tải CPU. \\
+        \textbf{Network Policies} & K8s Zero-Trust Engine & Cô lập mạng nội bộ, ngăn chặn tấn công di chuyển ngang. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\section{Chi tiết chức năng và lý do cần thiết của từng thành phần}
+
+\subsection{1. Edge Gateway (pfSense/Linux Dual-ENI)}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Trong mô hình an ninh đám mây, các máy chủ chứa ứng dụng và dữ liệu không được phép gán địa chỉ IP công cộng trực tiếp ra Internet. Cần có một nút mạng đóng vai trò cửa ngõ kiểm soát duy nhất (Single Point of Entry) để làm tường lửa, bảo vệ cụm K8s nội bộ và làm trạm trung chuyển quản trị an toàn (Bastion Host).
+    \item \textbf{Nhiệm vụ trong hệ thống:}
+    \begin{enumerate}
+        \item Sở hữu 2 card mạng ảo độc lập: Card WAN (\texttt{ens5}) gắn với Elastic IP công khai và Card LAN (\texttt{ens6} - \texttt{10.0.10.254}) kết nối trực tiếp vào mạng nội bộ K8s.
+        \item Thực hiện kỹ thuật \textit{Destination NAT (DNAT)} để điều hướng các cổng dịch vụ công khai (80, 7443, 8443) tới đúng các địa chỉ IP nội bộ tương ứng trong cụm Kubernetes.
+        \item Thực hiện \textit{Source NAT (Masquerade)} cho toàn bộ luồng Egress từ các Worker node đi ra Internet an toàn.
+        \item Cung cấp cổng truy cập dòng lệnh SSH an toàn qua khóa bảo mật RSA, hạn chế tối đa rủi ro tấn công brute-force.
+    \end{enumerate}
+\end{itemize}
+
+\subsection{2. Hệ thống phát hiện xâm nhập mạng Suricata (Network IDS)}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Tường lửa mạng truyền thống chỉ lọc gói tin dựa trên IP và Port, không thể phân tích nội dung bên trong gói tin HTTP. Suricata đóng vai trò kiểm tra sâu gói tin (\textit{Deep Packet Inspection - DPI}), phát hiện ngay các mẫu tấn công Web nguy hiểm trước khi gói tin chạm tới tầng ứng dụng.
+    \item \textbf{Nhiệm vụ trong hệ thống:}
+    \begin{enumerate}
+        \item Hoạt động ở chế độ \texttt{af-packet} bắt gói tin trực tiếp không làm suy giảm tốc độ mạng trên giao diện WAN (\texttt{ens5}).
+        \item Nạp bộ luật nhận diện tấn công ứng dụng Web chuyên dụng (\texttt{local.rules}) để phát hiện: SQL Injection (\texttt{UNION SELECT}, \texttt{OR 1=1}), Cross-Site Scripting (\texttt{<script>}), Directory Traversal (\texttt{/etc/passwd}, \texttt{../..}) và thăm dò thực thi mã từ xa RCE.
+        \item Xuất dữ liệu nhật ký cảnh báo an ninh dạng chuẩn JSON tại \texttt{/var/log/suricata/eve.json} để chuyển giao cho Wazuh SIEM phân tích.
+    \end{enumerate}
+\end{itemize}
+
+\subsection{3. Cụm Upstream Kubernetes v1.31 (Kubeadm)}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Đảm bảo tính tiêu chuẩn công nghiệp nguyên bản của công nghệ Container Orchestration, loại bỏ hoàn toàn các rủi ro bị khóa chặt vào giải pháp thương mại của nhà cung cấp dịch vụ đám mây (Vendor Lock-in), hỗ trợ đầy đủ các API và chính sách an ninh hiện đại nhất.
+    \item \textbf{Nhiệm vụ trong hệ thống:}
+    \begin{enumerate}
+        \item Duy trì trạng thái vận hành của cụm thông qua Control Plane trên Master node (API Server, Etcd, Controller Manager, Scheduler).
+        \item Quản lý vòng đời và tự động phục hồi Pod lỗi (\textit{Self-healing}) trên 2 Worker node.
+        \item Cân bằng tải nội bộ thông qua Kube-Proxy và điều phối lưu lượng mạng Pod-to-Pod thông qua CNI Flannel.
+    \end{enumerate}
+\end{itemize}
+
+\subsection{4. Ingress-NGINX Controller}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Giải quyết bài toán tiếp nhận lưu lượng HTTP/HTTPS tầng 7 tại điểm vào cụm. Thay vì phải mở nhiều cổng NodePort hoặc thuê nhiều dịch vụ Cloud Load Balancer gây phát sinh chi phí, Ingress Controller đóng vai trò Reverse Proxy đơn điểm hiệu quả cao.
+    \item \textbf{Nhiệm vụ trong hệ thống:}
+    \begin{enumerate}
+        \item Triển khai trên Master node với cấu hình \texttt{hostNetwork: true}, liên kết trực tiếp với cổng 80 và 443 của máy chủ.
+        \item Tiếp nhận các gói tin Web được chuyển tiếp từ Gateway, phân tích HTTP Host Header và điều phối chính xác về Service \texttt{frontend} của ứng dụng Online Boutique.
+    \end{enumerate}
+\end{itemize}
+
+\subsection{5. Rancher Management Server v2.15.2}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Quản trị cụm Kubernetes thuần túy bằng dòng lệnh \texttt{kubectl} thường phức tạp, thiếu tính trực quan và khó quan sát sức khỏe tổng thể hạ tầng trong các tình huống khẩn cấp. Rancher mang lại giao diện quản trị đồ họa tập trung mạnh mẽ theo tiêu chuẩn doanh nghiệp.
+    \item \textbf{Nhiệm vụ trong hệ thống:}
+    \begin{enumerate}
+        \item Cung cấp bảng điều khiển trực quan theo thời gian thực giám sát mức độ tiêu thụ CPU, RAM, trạng thái các Node và Workload.
+        \item Quản lý phân quyền truy cập dựa trên vai trò (\textit{Role-Based Access Control - RBAC}).
+        \item Lắng nghe trên cổng NodePort nội bộ \texttt{30443} và được Gateway chuyển hướng công khai an toàn qua cổng \textbf{\texttt{7443}}.
+    \end{enumerate}
+\end{itemize}
+
+\subsection{6. Hệ thống giám sát an ninh tập trung Wazuh SIEM \& XDR}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Trong một hệ thống phân tán, các file log nằm rải rác trên từng máy chủ khiến việc phát hiện tấn công có tổ chức trở nên bất khả thi. Wazuh SIEM đóng vai trò trung tâm điều hành an ninh (\textit{Security Operation Center - SOC}), tự động gom log, giải mã và tương quan sự kiện để đưa ra cảnh báo chính xác.
+    \item \textbf{Nhiệm vụ trong hệ thống:}
+    \begin{enumerate}
+        \item \textbf{Wazuh Manager} (trên Master node): Vận hành công cụ giải mã và phân tích luật tương quan theo ma trận MITRE ATT\&CK; cung cấp REST API (port \texttt{55000} / Gateway port \textbf{\texttt{8443}}).
+        \item \textbf{Wazuh Agent} (trên Edge Gateway): Theo dõi trực tiếp file nhật ký sự kiện \texttt{/var/log/suricata/eve.json} và nhật ký xác thực PAM/SSH, lập tức gửi về Manager thông qua kênh truyền mã hóa TLS cổng 1514.
+    \end{enumerate}
+\end{itemize}
+
+\subsection{7. Ứng dụng Google Online Boutique (12 Microservices)}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Cung cấp môi trường ứng dụng thực tế với đầy đủ các ngăn xếp công nghệ hiện đại (Go, C\#, Java, Python, Node.js) và cơ sở dữ liệu in-memory Redis để đánh giá năng lực bảo vệ của hệ thống trước các kịch bản tấn công thực tế.
+    \item \textbf{Nhiệm vụ trong hệ thống:} Vận hành chu trình mua sắm trực tuyến hoàn chỉnh: duyệt hàng (\texttt{productcatalogservice}), quản lý giỏ hàng (\texttt{cartservice} \& \texttt{redis-cart}), thanh toán thẻ (\texttt{paymentservice}), tính toán tiền tệ (\texttt{currencyservice}), gửi thư xác nhận (\texttt{emailservice}) và tự sinh tải giả lập (\texttt{loadgenerator}).
+\end{itemize}
+
+\subsection{8. Tự động co giãn Pod (Horizontal Pod Autoscaler - HPA v2)}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Trong các đợt cao điểm mua sắm hoặc khi bị tấn công từ chối dịch vụ (DDoS), việc tăng giảm tài nguyên thủ công sẽ dẫn đến nghẽn dịch vụ hoặc lãng phí chi phí máy chủ.
+    \item \textbf{Nhiệm vụ trong hệ thống:} Metrics-Server liên tục thu thập mức độ sử dụng CPU/RAM của các Pod; HPA tự động tính toán và điều chỉnh số lượng Pod bản sao (ví dụ: nhân rộng \texttt{frontend} từ 1 lên tối đa 10 bản sao) khi mức sử dụng CPU vượt ngưỡng 60\%.
+\end{itemize}
+
+\subsection{9. Chính sách cách ly mạng Zero-Trust (Kubernetes NetworkPolicies)}
+\begin{itemize}
+    \item \textbf{Tại sao cần:} Theo mặc định, mọi Pod trong cụm Kubernetes đều có thể kết nối không giới hạn tới bất kỳ Pod nào khác. Nếu một vi dịch vụ công khai bị xâm nhập, kẻ tấn công có thể dễ dàng tấn công di chuyển ngang (\textit{Lateral Movement}) sang các dịch vụ tài chính nhạy cảm.
+    \item \textbf{Nhiệm vụ trong hệ thống:} Thiết lập các bức tường lửa phần mềm ở tầng Pod: \textbf{Cách ly hoàn toàn \texttt{paymentservice}}, chỉ cho phép duy nhất dịch vụ \texttt{checkoutservice} kết nối tới cổng gRPC 50051; chặn toàn bộ mọi kết nối trái phép khác.
+\end{itemize}

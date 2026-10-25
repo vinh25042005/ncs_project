@@ -1,0 +1,177 @@
+\documentclass[12pt,a4paper]{report}
+
+% ==============================================================================
+% CẤU HÌNH GÓI & NGÔN NGỮ TIẾNG VIỆT CHO OVERLEAF / PDFLATEX
+% ==============================================================================
+\usepackage[utf8]{inputenc}
+\usepackage[vietnamese]{babel}
+\usepackage[T5,T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a4paper,top=25mm,bottom=25mm,left=30mm,right=20mm]{geometry}
+\usepackage{setspace}
+\setstretch{1.25} % Giãn dòng 1.25 chuẩn tài liệu kỹ thuật
+
+% ==============================================================================
+% GÓI BỔ TRỢ HÌNH ẢNH, BẢNG BIỂU & TOÁN HỌC
+% ==============================================================================
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{microtype}
+
+% ==============================================================================
+% MÀU SẮC & GÓI TÔ MÀU MÃ NGUỒN (LISTINGS)
+% ==============================================================================
+\usepackage{xcolor}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.96,0.97,0.98}
+\definecolor{darkblue}{rgb}{0.0,0.2,0.6}
+
+\usepackage{listings}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen}\itshape,
+    keywordstyle=\color{magenta}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=6pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    frame=single,
+    rulecolor=\color{black!20}
+}
+\lstset{style=mystyle}
+
+% Định nghĩa ngôn ngữ bổ sung cho listings nếu cần
+\lstdefinelanguage{yaml}{
+  keywords={true,false,null,y,n},
+  keywordstyle=\color{darkblue}\bfseries,
+  basicstyle=\ttfamily\footnotesize,
+  sensitive=false,
+  comment=[l]{\#},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{codegreen}\ttfamily,
+  stringstyle=\color{codepurple}\ttfamily,
+  moredelim=[l][\color{orange}]{\&},
+  moredelim=[l][\color{magenta}]{*},
+  moredelim=**[il][\yeollow{:}\global\let\spacebox\relax]{:}
+}
+
+% ==============================================================================
+% HEADER & FOOTER
+% ==============================================================================
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\slshape Báo Cáo Kỹ Thuật Project Kubernetes}
+\fancyhead[R]{\slshape\nouppercase{\leftmark}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% ==============================================================================
+% LIÊN KẾT SIÊU VĂN BẢN (HYPERREF)
+% ==============================================================================
+\usepackage[unicode,colorlinks=true,linkcolor=blue!70!black,citecolor=green!50!black,urlcolor=blue!80!black]{hyperref}
+
+% Định dạng tiêu đề chương
+\usepackage{titlesec}
+\titleformat{\chapter}[hang]
+  {\normalfont\LARGE\bfseries\color{darkblue}}{\thechapter.}{1em}{}
+\titlespacing*{\chapter}{0pt}{-10pt}{20pt}
+
+% ==============================================================================
+% BẮT ĐẦU TÀI LIỆU
+% ==============================================================================
+\begin{document}
+
+% ------------------------------------------------------------------------------
+% TRANG BÌA (TỐI GIẢN CHUẨN: BÁO CÁO PROJECT K8S)
+% ------------------------------------------------------------------------------
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    {\Huge \bfseries \color{darkblue} BÁO CÁO PROJECT K8S \par}
+    
+    \vspace{1.5cm}
+    \rule{\textwidth}{1.5pt}\par
+    \vspace{0.8cm}
+    
+    {\Large \bfseries TRIỂN KHAI HỆ THỐNG AN NINH HẠ TẦNG MICROSERVICES TRÊN NỀN TẢNG CLOUD-NATIVE \par}
+    \vspace{0.5cm}
+    {\large Upstream Kubernetes v1.31, Edge Gateway (Suricata IDS/IPS), Rancher Management \& Wazuh SIEM \par}
+    
+    \vspace{0.8cm}
+    \rule{\textwidth}{1.5pt}\par
+    
+    \vfill
+    
+    \begin{minipage}{0.8\textwidth}
+        \centering
+        \textbf{Môi trường hạ tầng:} Amazon Web Services (AWS) Singapore (\texttt{ap-southeast-1}) \\
+        \textbf{Mô hình quản trị:} Infrastructure as Code (Terraform) \& Configuration Automation (Ansible) \\
+        \textbf{Ràng buộc tài nguyên:} Tối ưu hóa nghiêm ngặt hạn ngạch Cloud (Strict 8.0 vCPUs)
+    \end{minipage}
+    
+    \vfill
+    
+    {\large \bfseries Tháng 10 Năm 2026 \par}
+    \vspace*{1cm}
+\end{titlepage}
+
+% ------------------------------------------------------------------------------
+% MỤC LỤC & DANH MỤC HÌNH ẢNH / BẢNG BIỂU
+% ------------------------------------------------------------------------------
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+\listoffigures
+\listoftables
+\newpage
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+% ------------------------------------------------------------------------------
+% CÁC CHƯƠNG NỘI DUNG CHÍNH (THEO ĐÚNG TRÌNH TỰ YÊU CẦU)
+% ------------------------------------------------------------------------------
+\input{chapters/ch1_architecture}
+\newpage
+
+\input{chapters/ch2_components}
+\newpage
+
+\input{chapters/ch3_deployment}
+\newpage
+
+\input{chapters/ch4_testing}
+\newpage
+
+\input{chapters/ch5_conclusion}
+\newpage
+
+% ------------------------------------------------------------------------------
+% TÀI LIỆU THAM KHẢO
+% ------------------------------------------------------------------------------
+\addcontentsline{toc}{chapter}{Tài liệu tham khảo}
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
