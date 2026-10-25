@@ -116,8 +116,8 @@ Hệ thống được thiết kế và phân bổ cấu hình máy chủ ảo Am
         \midrule
         \texttt{pfsense-gateway} & \texttt{t3.small} & 2 & 2 GB & 20 GB (gp3) & Gateway, Suricata IDS, NAT, Bastion \\
         \texttt{k8s-master} & \texttt{c7i-flex.large} & 2 & 4 GB & 20 GB (gp3) & K8s Control Plane, Ingress, Rancher, Wazuh \\
-        \texttt{k8s-worker-1} & \texttt{t3.small} & 2 & 2 GB & 20 GB (gp3) & Worker node chính (Frontend, Cart, Catalog...) \\
-        \texttt{k8s-worker-2} & \texttt{t3.small} & 2 & 2 GB & 20 GB (gp3) & Worker node dự phòng Multi-AZ (Checkout, Email...) \\
+        \texttt{k8s-worker-1} & \texttt{t3.small} & 2 & 2 GB & 20 GB (gp3) & K8s Worker node (Kube-Scheduler tự động điều phối Pods) \\
+        \texttt{k8s-worker-2} & \texttt{t3.small} & 2 & 2 GB & 20 GB (gp3) & K8s Worker node Multi-AZ (Cân bằng tải song song, chịu lỗi) \\
         \midrule
         \multicolumn{2}{l}{\textbf{Tổng cộng tài nguyên}} & \textbf{8} & \textbf{10 GB} & \textbf{80 GB} & \textbf{4 Máy chủ vận hành ổn định} \\
         \bottomrule
