@@ -111,7 +111,7 @@ variable "worker_count" {
 }
 
 variable "enable_wazuh" {
-  description = "Bật/Tắt máy chủ Wazuh SIEM EC2 riêng biệt (mặc định tắt để nhường vCPU cho 2 Worker)"
+  description = "Bật/Tắt máy chủ Wazuh SIEM EC2 riêng biệt (mặc định tắt khi cài chung trên Master)"
   type        = bool
   default     = false
 }

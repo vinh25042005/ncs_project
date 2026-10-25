@@ -68,13 +68,13 @@ Cụm Kubernetes sử dụng giải pháp CNI \textbf{Flannel} hoạt động tr
     \item Gói tin trao đổi giữa các Pod được đóng gói trong giao thức UDP port 8472 trên card mạng nội bộ, cho phép các Pod thuộc 12 vi dịch vụ giao tiếp liền mạch xuyên suốt giữa 2 Vùng sẵn sàng (\texttt{ap-southeast-1a} và \texttt{ap-southeast-1b}) mà không bị giới hạn bởi cấu trúc định tuyến vật lý của AWS VPC.
 \end{itemize}
 
-\section{Tối ưu hóa hạn ngạch tài nguyên Cloud (AWS vCPU Quota)}
-Dự án được triển khai trên tài khoản AWS tiêu chuẩn với hạn ngạch giới hạn nghiêm ngặt tối đa \textbf{8.0 vCPUs} cho nhóm máy chủ On-Demand. Bảng phân bổ máy chủ được tính toán chính xác để đạt hiệu năng tối đa mà không vượt quá hạn ngạch:
+\section{Phân bổ tài nguyên máy chủ EC2}
+Hệ thống được thiết kế và phân bổ cấu hình máy chủ ảo Amazon EC2 tối ưu, đảm bảo đáp ứng đầy đủ năng lực tính toán và bộ nhớ cho cả cụm Kubernetes lẫn các thành phần giám sát an ninh:
 
 \begin{table}[H]
     \centering
-    \caption{Bảng phân bổ tài nguyên máy chủ EC2 tuân thủ hạn ngạch 8.0 vCPU}
-    \label{tab:quota}
+    \caption{Bảng phân bổ tài nguyên máy chủ EC2 trong hệ thống}
+    \label{tab:ec2_resources}
     \begin{tabularx}{\textwidth}{l l c c c X}
         \toprule
         \textbf{Máy chủ (Host)} & \textbf{Loại Instance} & \textbf{vCPU} & \textbf{RAM} & \textbf{EBS Disk} & \textbf{Nhiệm vụ chính} \\
@@ -84,7 +84,7 @@ Dự án được triển khai trên tài khoản AWS tiêu chuẩn với hạn 
         \texttt{k8s-worker-1} & \texttt{t3.small} & 2 & 2 GB & 20 GB (gp3) & Worker node chính (Frontend, Cart, Catalog...) \\
         \texttt{k8s-worker-2} & \texttt{t3.small} & 2 & 2 GB & 20 GB (gp3) & Worker node dự phòng Multi-AZ (Checkout, Email...) \\
         \midrule
-        \multicolumn{2}{l}{\textbf{Tổng cộng tài nguyên}} & \textbf{8.0} & \textbf{10 GB} & \textbf{80 GB} & \textbf{Tuân thủ 100\% Quota (8.0/8.0 vCPUs)} \\
+        \multicolumn{2}{l}{\textbf{Tổng cộng tài nguyên}} & \textbf{8} & \textbf{10 GB} & \textbf{80 GB} & \textbf{4 Máy chủ vận hành ổn định} \\
         \bottomrule
     \end{tabularx}
 \end{table}

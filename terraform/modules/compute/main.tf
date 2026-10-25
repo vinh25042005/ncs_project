@@ -312,7 +312,7 @@ resource "aws_instance" "wazuh" {
 }
 
 # ─────────────────────────────────────────────────────────────
-# 4. Rancher Management Server (Tùy chọn nếu có thêm vCPU)
+# 4. Rancher Management Server (Tùy chọn tách riêng VM)
 # ─────────────────────────────────────────────────────────────
 
 resource "aws_instance" "rancher" {

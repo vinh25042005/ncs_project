@@ -11,7 +11,7 @@ key_name   = "ncs-key"
 # Giới hạn IP của bạn để truy cập quản trị an toàn (ví dụ: "14.232.x.x/32")
 admin_cidr = "0.0.0.0/0"
 
-# Cấu hình quy mô 6 máy chủ (Đạt đúng 8 vCPUs Quota & Free Tier)
+# Cấu hình quy mô máy chủ
 worker_count             = 2
 k8s_master_instance_type = "c7i-flex.large"
 rancher_instance_type    = "c7i-flex.large"

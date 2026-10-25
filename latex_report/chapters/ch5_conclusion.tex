@@ -5,7 +5,7 @@
 Dự án đã nghiên cứu, thiết kế và triển khai thành công một hệ sinh thái an ninh hạ tầng toàn diện cho ứng dụng Microservices trên nền tảng đám mây công cộng AWS Singapore, đạt được đầy đủ các mục tiêu đề ra:
 
 \begin{enumerate}
-    \item \textbf{Tối ưu hóa tài nguyên Cloud tuyệt đối}: Toàn bộ hệ thống 4 máy chủ EC2 vận hành mượt mà, ổn định và tuân thủ nghiêm ngặt hạn ngạch giới hạn \textbf{8.0 vCPUs} của tài khoản AWS On-Demand.
+    \item \textbf{Phân bổ tài nguyên hợp lý \& Hiệu quả}: Toàn bộ hệ thống 4 máy chủ EC2 vận hành mượt mà, ổn định, đáp ứng tối ưu năng lực tính toán cho cả cụm Kubernetes và các ứng dụng giám sát an ninh.
     \item \textbf{Quy hoạch cổng dịch vụ thông minh}: Tận dụng duy nhất một địa chỉ IP Public (\texttt{13.251.225.100}) để phân bổ 3 cổng dịch vụ độc lập (\textbf{80} cho Web bán hàng, \textbf{7443} cho Rancher Manager và \textbf{8443} cho Wazuh SIEM API) mà không xảy ra xung đột.
     \item \textbf{Phòng thủ an ninh đa lớp vững chắc}:
     \begin{itemize}
@@ -21,7 +21,7 @@ Dự án đã nghiên cứu, thiết kế và triển khai thành công một h�
 Mặc dù hệ thống đã vận hành hoàn chỉnh các tính năng cốt lõi, trong tương lai có thể tiếp tục mở rộng và nâng cấp theo các định hướng sau:
 
 \begin{itemize}
-    \item \textbf{Mô hình Gateway dự phòng (High Availability Gateway)}: Hiện tại Gateway là điểm nghẽn đơn lẻ (\textit{Single Point of Failure - SPOF}) do giới hạn 8.0 vCPU. Khi hạn ngạch được nâng cấp, có thể triển khai cụm 2 Gateway chạy song song trên 2 AZ kết hợp Keepalived/VRRP hoặc AWS Transit Gateway để đạt chuẩn sẵn sàng 99.99\%.
+    \item \textbf{Mô hình Gateway dự phòng (High Availability Gateway)}: Triển khai cụm 2 Gateway chạy song song trên 2 Vùng sẵn sàng (Multi-AZ) kết hợp giao thức Keepalived/VRRP hoặc AWS Transit Gateway để loại bỏ hoàn toàn điểm nghẽn đơn lẻ (SPOF) và đạt chuẩn sẵn sàng cao 99.99\%.
     \item \textbf{Mã hóa lưu lượng nội bộ với Service Mesh}: Triển khai Istio hoặc Linkerd để tự động kích hoạt tính năng \textit{Mutual TLS (mTLS)}, mã hóa toàn diện dữ liệu truyền thông giữa các Pod bên trong cụm K8s.
     \item \textbf{Quản lý bí mật an toàn với HashiCorp Vault}: Tích hợp Vault để quản lý và tự động xoay vòng chứng chỉ, mật khẩu cơ sở dữ liệu thay vì lưu trữ dạng Secret tĩnh trong Kubernetes.
 \end{itemize}

@@ -8,7 +8,7 @@
    * 1.1. Bối cảnh dự án
    * 1.2. Danh sách các thành phần triển khai
    * 1.3. Mục tiêu & Ý nghĩa của từng thành phần
-   * 1.4. Ràng buộc & Tối ưu hóa tài nguyên Cloud (AWS Quota 8.0 vCPU)
+   * 1.4. Quy hoạch & Phân bổ tài nguyên máy chủ Cloud
 2. [KIẾN TRÚC & TOPOLOGY HỆ THỐNG](#2-kiến-trúc--topology-hệ-thống)
    * 2.1. Sơ đồ kiến trúc tổng thể (Architecture Topology)
    * 2.2. Phân vùng mạng & Địa chỉ IP (Network Segmentation)
@@ -95,13 +95,14 @@ Trong kỷ nguyên điện toán đám mây và kiến trúc vi dịch vụ (Mic
 
 ---
 
-### 1.4. Ràng buộc & Tối ưu hóa tài nguyên Cloud (AWS Quota 8.0 vCPU)
+### 1.4. Quy hoạch & Phân bổ tài nguyên máy chủ Cloud
 
-* **Ràng buộc hạ tầng**: Tài khoản AWS học tập/doanh nghiệp giới hạn nghiêm ngặt trần **8.0 vCPU** cho loại máy ảo tiêu chuẩn.
-* **Giải pháp tính toán tối ưu**:
-  $$\text{Tổng vCPU} = 2.0\,(\text{Master}) + 2.0\,(\text{Gateway}) + 2.0\,(\text{Worker-1}) + 2.0\,(\text{Worker-2}) = \mathbf{8.0 \text{ vCPU}}$$
+* **Mô hình phân bổ máy chủ**: Hệ thống được phân bổ trên 4 máy chủ EC2 chuyên biệt:
+  - **Gateway Node** (`t3.small`): 2 vCPU, 2 GB RAM, 20 GB gp3 SSD (Dual-ENI).
+  - **Master Node** (`c7i-flex.large`): 2 vCPU, 4 GB RAM + 4.0 GB Swapfile (tổng bộ nhớ ảo ~7.7 GB RAM) để vận hành đồng thời Kubernetes Control Plane, Rancher Server và Wazuh SIEM All-in-One.
+  - **Worker 1 Node** (`t3.small`): 2 vCPU, 2 GB RAM, 20 GB gp3 SSD (AZ-a).
+  - **Worker 2 Node** (`t3.small`): 2 vCPU, 2 GB RAM, 20 GB gp3 SSD (AZ-b Multi-AZ).
 * **Kỹ thuật tối ưu hóa Master Node**:
-  - Master Node (`c7i-flex.large`, 2 vCPU, ~3.7 GB RAM) được mở rộng thêm **4.0 GB Swapfile** (tổng bộ nhớ ảo ~7.7 GB RAM) để có thể vận hành đồng thời Kubernetes Control Plane, Rancher Server và Wazuh SIEM All-in-One.
   - Tinh chỉnh tắt module quét lỗ hổng offline (`vulnerability-detection: no`) trong Wazuh Manager để tiết kiệm hơn 8.4 GB dung lượng đĩa, ngăn chặn triệt để lỗi DiskPressure trên kubelet.
 
 ---
@@ -498,7 +499,7 @@ Kiểm tra khả năng bảo vệ của Kubernetes Network Policies:
 Dự án đã xây dựng thành công một hệ thống bảo vệ toàn diện, hiện đại và chuẩn mực:
 * **Hạ tầng chuẩn mực**: Upstream Kubernetes v1.31 kết hợp tự động hóa 100% bằng Terraform và Ansible.
 * **Bảo mật đa tầng thực chất**: Tường lửa biên pfSense/Gateway + Suricata IDS + Zero-Trust Network Policies + Wazuh SIEM giám sát tập trung.
-* **Tối ưu hóa triệt để**: Vận hành trơn tru cả cụm K8s, ứng dụng Boutique, Rancher và Wazuh SIEM trên đúng trần 8.0 vCPU mà không phát sinh thêm chi phí đám mây.
+* **Vận hành hiệu quả & Ổn định**: Vận hành trơn tru cả cụm K8s, ứng dụng Boutique, Rancher và Wazuh SIEM với hiệu năng cao và phân bổ tài nguyên hợp lý.
 
 ---
 
