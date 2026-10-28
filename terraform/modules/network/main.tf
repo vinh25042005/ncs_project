@@ -72,7 +72,7 @@ resource "aws_subnet" "mgmt" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.mgmt_cidr
   availability_zone       = var.availability_zone
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = {
     Name = "${var.project_name}-subnet-mgmt-wazuh"
@@ -80,7 +80,7 @@ resource "aws_subnet" "mgmt" {
   }
 }
 
-# Route table Public (WAN & Wazuh -> IGW)
+# Route table Public (WAN -> IGW)
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -104,35 +104,35 @@ resource "aws_route_table_association" "public_wan_b" {
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_route_table_association" "mgmt" {
-  subnet_id      = aws_subnet.mgmt.id
-  route_table_id = aws_route_table.public.id
-}
-
-# Route table Private (Toàn bộ traffic ra ngoài qua pfSense LAN interface)
-resource "aws_route_table" "private" {
+# Route table Private A (AZ-a: K8s Subnet A & Management Subnet Wazuh -> Gateway 1 LAN ENI)
+resource "aws_route_table" "private_a" {
   vpc_id = aws_vpc.main.id
 
-  # Nếu pfSense LAN ENI được cấu hình làm default gateway
-  dynamic "route" {
-    for_each = var.pfsense_lan_eni_id != "" ? [var.pfsense_lan_eni_id] : []
-    content {
-      cidr_block           = "0.0.0.0/0"
-      network_interface_id = route.value
-    }
-  }
-
   tags = {
-    Name = "${var.project_name}-rt-private"
+    Name = "${var.project_name}-rt-private-a"
   }
 }
 
 resource "aws_route_table_association" "private_k8s" {
   subnet_id      = aws_subnet.private_k8s.id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private_a.id
+}
+
+resource "aws_route_table_association" "mgmt" {
+  subnet_id      = aws_subnet.mgmt.id
+  route_table_id = aws_route_table.private_a.id
+}
+
+# Route table Private B (AZ-b: K8s Subnet B -> Gateway 2 LAN ENI)
+resource "aws_route_table" "private_b" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "${var.project_name}-rt-private-b"
+  }
 }
 
 resource "aws_route_table_association" "private_k8s_b" {
   subnet_id      = aws_subnet.private_k8s_b.id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private_b.id
 }

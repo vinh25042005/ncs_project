@@ -23,13 +23,13 @@ variable "public_wan_b_cidr" {
 }
 
 variable "private_k8s_cidr" {
-  description = "Dải CIDR cho Private Subnet K3s (AZ-a)"
+  description = "Dải CIDR cho Private Subnet Kubernetes (AZ-a)"
   type        = string
   default     = "10.0.10.0/24"
 }
 
 variable "private_k8s_b_cidr" {
-  description = "Dải CIDR cho Private Subnet K3s (AZ-b)"
+  description = "Dải CIDR cho Private Subnet Kubernetes (AZ-b)"
   type        = string
   default     = "10.0.11.0/24"
 }
@@ -50,10 +50,4 @@ variable "availability_zone_b" {
   description = "AWS Availability Zone B"
   type        = string
   default     = "ap-southeast-1b"
-}
-
-variable "pfsense_lan_eni_id" {
-  description = "ID của card mạng LAN pfSense dùng để cấu hình default route cho Private Route Table"
-  type        = string
-  default     = ""
 }

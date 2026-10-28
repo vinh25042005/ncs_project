@@ -10,9 +10,11 @@
 
 - name: Cấu hình tham số --kubelet-insecure-tls để Metrics-Server có thể đọc số liệu từ Kubelet
   shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl patch deployment metrics-server -n kube-system \
-      --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]' || true
-  changed_when: true
+    if ! KUBECONFIG=/etc/kubernetes/admin.conf kubectl get deployment metrics-server -n kube-system -o yaml | grep -q -- '--kubelet-insecure-tls'; then
+      KUBECONFIG=/etc/kubernetes/admin.conf kubectl patch deployment metrics-server -n kube-system \
+        --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+    fi
+  changed_when: false
 
 - name: Đợi Metrics-Server Deployment đạt trạng thái sẵn sàng (Available)
   shell: |
@@ -32,13 +34,3 @@
 - name: Hiển thị kết quả thu thập số liệu Nodes
   debug:
     var: top_nodes_output.stdout_lines
-
-- name: Kiểm tra trạng thái HPA của Online Boutique
-  shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get hpa -n online-boutique
-  register: hpa_output
-  changed_when: false
-
-- name: Hiển thị trạng thái HPA sau khi kích hoạt Metrics-Server
-  debug:
-    var: hpa_output.stdout_lines

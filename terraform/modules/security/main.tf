@@ -94,12 +94,44 @@ resource "aws_security_group" "k8s" {
     self        = true
   }
 
-  # Cho phép traffic từ pfSense forward tới K8s Ingress Controller (Port 80, 443, 7443, 9443)
+  # Cho phép traffic từ pfSense forward tới K8s Ingress Controller (Port 80, 443, 6443, 9443 và NodePorts)
   ingress {
-    description     = "Traffic from pfSense Firewall to K8s"
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
+    description     = "HTTP Ingress from pfSense"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.pfsense.id]
+  }
+
+  ingress {
+    description     = "HTTPS Ingress from pfSense"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.pfsense.id]
+  }
+
+  ingress {
+    description     = "K8s API from pfSense"
+    from_port       = 6443
+    to_port         = 6443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.pfsense.id]
+  }
+
+  ingress {
+    description     = "Wazuh API/Dashboard from pfSense"
+    from_port       = 9443
+    to_port         = 9443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.pfsense.id]
+  }
+
+  ingress {
+    description     = "K8s NodePort services from pfSense"
+    from_port       = 30000
+    to_port         = 32767
+    protocol        = "tcp"
     security_groups = [aws_security_group.pfsense.id]
   }
 
@@ -140,22 +172,32 @@ resource "aws_security_group" "wazuh" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # Wazuh Dashboard (HTTPS)
+  # Wazuh Dashboard & API (HTTPS) - Mở cho Admin IP và mạng nội bộ VPC (qua Gateway Port Forward)
   ingress {
-    description = "Wazuh Web Dashboard"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.admin_cidr]
+    description     = "Wazuh Web Dashboard"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    cidr_blocks     = [var.admin_cidr, var.vpc_cidr]
+    security_groups = [aws_security_group.pfsense.id]
   }
 
-  # SSH
+  ingress {
+    description     = "Wazuh API"
+    from_port       = 55000
+    to_port         = 55000
+    protocol        = "tcp"
+    cidr_blocks     = [var.admin_cidr, var.vpc_cidr]
+    security_groups = [aws_security_group.pfsense.id]
+  }
+
+  # SSH - Mở cho Admin IP và Bastion qua VPC
   ingress {
     description = "SSH to Wazuh"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.admin_cidr]
+    cidr_blocks = [var.admin_cidr, var.vpc_cidr]
   }
 
   egress {

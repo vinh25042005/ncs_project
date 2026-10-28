@@ -1,5 +1,16 @@
 ---
 # Role: wazuh_agent — cài agent, trỏ về manager; (gateway) đọc Suricata eve.json
+- name: Đợi và giải phóng tiến trình APT / cloud-init nếu đang chạy
+  ansible.builtin.shell: |
+    systemctl stop unattended-upgrades 2>/dev/null || true
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+      echo "Đang đợi tiến trình APT khác hoàn tất..."
+      sleep 3
+    done
+    dpkg --configure -a
+  changed_when: false
+  ignore_errors: true
+
 - name: Import GPG key Wazuh (dearmor về /usr/share/keyrings/wazuh.gpg)
   ansible.builtin.shell: |
     set -o pipefail
@@ -51,8 +62,33 @@
     mode: "0644"
   when: wazuh_agent_suricata | bool
 
+- name: "(master) Cấp quyền đọc file K8s audit log cho user wazuh"
+  ansible.builtin.shell: |
+    chmod 755 /var/log/kubernetes
+    touch /var/log/kubernetes/audit.log
+    chmod 644 /var/log/kubernetes/audit.log
+    if command -v setfacl >/dev/null 2>&1; then
+      setfacl -R -m u:wazuh:rX /var/log/kubernetes 2>/dev/null || true
+      setfacl -d -m u:wazuh:rX /var/log/kubernetes 2>/dev/null || true
+    fi
+  when: wazuh_agent_k8s_audit | default(false) | bool
+  changed_when: false
+
+- name: "(master) Đọc K8s audit log vào Wazuh Agent"
+  ansible.builtin.blockinfile:
+    path: /var/ossec/etc/ossec.conf
+    marker: "<!-- {mark} ANSIBLE: k8s audit -->"
+    insertbefore: "</ossec_config>"
+    block: |
+      <localfile>
+        <log_format>json</log_format>
+        <location>/var/log/kubernetes/audit.log</location>
+      </localfile>
+  when: wazuh_agent_k8s_audit | default(false) | bool
+  notify: restart wazuh-agent
+
 - name: Bật & chạy wazuh-agent
-  ansible.builtin.systemd_service:
+  ansible.builtin.systemd:
     name: wazuh-agent
     state: started
     enabled: true

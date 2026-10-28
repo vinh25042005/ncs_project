@@ -28,7 +28,17 @@ output "mgmt_subnet_id" {
   value       = aws_subnet.mgmt.id
 }
 
+output "private_route_table_a_id" {
+  description = "ID của bảng định tuyến Private Route Table A (AZ-a -> Gateway 1)"
+  value       = aws_route_table.private_a.id
+}
+
+output "private_route_table_b_id" {
+  description = "ID của bảng định tuyến Private Route Table B (AZ-b -> Gateway 2)"
+  value       = aws_route_table.private_b.id
+}
+
 output "private_route_table_id" {
-  description = "ID của bảng định tuyến Private Route Table"
-  value       = aws_route_table.private.id
+  description = "ID của bảng định tuyến Private Route Table (Alias cho Private A)"
+  value       = aws_route_table.private_a.id
 }

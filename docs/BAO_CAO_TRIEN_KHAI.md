@@ -382,7 +382,7 @@ curl -k -I https://13.251.225.100:7443/
 # Kết quả: HTTP/1.1 200 OK (X-Api-Schemas: https://13.251.225.100:7443/meta/schemas)
 
 # Kiểm tra Wazuh SIEM Endpoint & REST API
-curl -k -u wazuh:wazuh -X POST https://13.251.225.100:8443/security/user/authenticate
+curl -k -u <WAZUH_API_USER>:<WAZUH_API_PASSWORD> -X POST https://13.251.225.100:8443/security/user/authenticate
 # Kết quả: {"data": {"token": "eyJhbGciOi..."}, "error": 0} (HTTP/1.1 200 OK)
 ```
 👉 **Đánh giá**: Cả 3 dịch vụ đều phản hồi hoàn hảo trên các cổng độc lập (80, 7443, 8443), sẵn sàng phục vụ người dùng và người quản trị.
@@ -503,12 +503,12 @@ Dự án đã xây dựng thành công một hệ thống bảo vệ toàn diệ
 2. GIAO DIỆN QUẢN TRỊ RANCHER SERVER:
    • URL: https://13.251.225.100:7443/ (Port 7443)
    • Domain phụ: https://13.251.225.100.sslip.io/ hoặc https://rancher.lab
-   • Bootstrap Password: <Xem trong file credentials.local.txt>
+   • Bootstrap Password: <Được cấp riêng cho quản trị viên>
 
 3. BẢNG ĐIỀU KHIỂN SOC WAZUH SIEM:
    • URL: https://13.251.225.100:8443/ (Port 8443)
    • Tài khoản: admin
-   • Mật khẩu:  <Xem trong file credentials.local.txt>
+   • Mật khẩu:  <Được cấp riêng cho quản trị viên>
 
 4. KẾT NỐI BASTION SSH:
    • Lệnh: ssh -i ~/.ssh/ncs-key.pem ubuntu@13.251.225.100

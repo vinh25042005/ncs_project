@@ -1,4 +1,4 @@
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: InitConfiguration
 localAPIEndpoint:
   advertiseAddress: "{{ master_ip }}"
@@ -6,19 +6,26 @@ localAPIEndpoint:
 nodeRegistration:
   criSocket: "unix:///var/run/containerd/containerd.sock"
   kubeletExtraArgs:
-    fail-swap-on: "false"
+    - name: "fail-swap-on"
+      value: "false"
 ---
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
+kubernetesVersion: "v1.31.0"
 networking:
   podSubnet: "{{ pod_network_cidr }}"
 apiServer:
   extraArgs:
-    audit-log-path: "/var/log/kubernetes/audit.log"
-    audit-policy-file: "/etc/kubernetes/audit-policy.yaml"
-    audit-log-maxsize: "{{ audit_log_maxsize }}"
-    audit-log-maxbackup: "{{ audit_log_maxbackup }}"
-    audit-log-maxage: "{{ audit_log_maxage }}"
+    - name: "audit-log-path"
+      value: "/var/log/kubernetes/audit.log"
+    - name: "audit-policy-file"
+      value: "/etc/kubernetes/audit-policy.yaml"
+    - name: "audit-log-maxsize"
+      value: "{{ audit_log_maxsize }}"
+    - name: "audit-log-maxbackup"
+      value: "{{ audit_log_maxbackup }}"
+    - name: "audit-log-maxage"
+      value: "{{ audit_log_maxage }}"
   extraVolumes:
     - name: "audit-policy"
       hostPath: "/etc/kubernetes/audit-policy.yaml"

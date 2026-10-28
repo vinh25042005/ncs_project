@@ -1,5 +1,16 @@
 ---
 # Role: wazuh_manager — cài Wazuh Manager + đọc K8s audit log (chạy trên master)
+- name: Đợi và giải phóng tiến trình APT / cloud-init nếu đang chạy
+  ansible.builtin.shell: |
+    systemctl stop unattended-upgrades 2>/dev/null || true
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+      echo "Đang đợi tiến trình APT khác hoàn tất..."
+      sleep 3
+    done
+    dpkg --configure -a
+  changed_when: false
+  ignore_errors: true
+
 - name: Import GPG key Wazuh (dearmor về /usr/share/keyrings/wazuh.gpg)
   ansible.builtin.shell: |
     set -o pipefail
@@ -21,6 +32,18 @@
     state: present
     update_cache: true
 
+- name: Cấp quyền đọc thư mục và file K8s audit log cho user wazuh
+  shell: |
+    chmod 755 /var/log/kubernetes
+    touch /var/log/kubernetes/audit.log
+    chmod 644 /var/log/kubernetes/audit.log
+    if command -v setfacl >/dev/null 2>&1; then
+      setfacl -R -m u:wazuh:rX /var/log/kubernetes 2>/dev/null || true
+      setfacl -d -m u:wazuh:rX /var/log/kubernetes 2>/dev/null || true
+    fi
+  when: wazuh_manager_k8s_audit | default(false) | bool
+  changed_when: false
+
 - name: Đọc K8s audit log vào Wazuh (localfile)
   ansible.builtin.blockinfile:
     path: /var/ossec/etc/ossec.conf
@@ -31,10 +54,23 @@
         <log_format>json</log_format>
         <location>/var/log/kubernetes/audit.log</location>
       </localfile>
+  when: wazuh_manager_k8s_audit | default(false) | bool
   notify: restart wazuh-manager
 
+- name: Tắt vulnerability-detection để tránh tải DB lỗ hổng 10GB làm cạn kiệt ổ cứng Master
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: '(<vulnerability-detection>[\s\S]*?<enabled>)yes(</enabled>)'
+    replace: '\g<1>no\g<2>'
+  notify: restart wazuh-manager
+
+- name: Dọn dẹp tệp tin tạm của vulnerability-detector (nếu đã tải về khi cài đặt)
+  ansible.builtin.shell: |
+    rm -rf /var/ossec/tmp/* /var/ossec/queue/vd/*
+  changed_when: false
+
 - name: Bật & chạy wazuh-manager
-  ansible.builtin.systemd_service:
+  ansible.builtin.systemd:
     name: wazuh-manager
     state: started
     enabled: true

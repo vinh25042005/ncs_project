@@ -43,18 +43,27 @@
     KUBECONFIG=/etc/kubernetes/admin.conf kubectl rollout status deployment/kubernetes-dashboard -n kubernetes-dashboard --timeout=120s
   changed_when: false
 
-- name: Tạo Bearer Token đăng nhập thời hạn 1 năm cho admin-user
+- name: Kiểm tra xem token Dashboard đã được lưu trước đó chưa
+  stat:
+    path: /etc/kubernetes/dashboard-token.txt
+  register: dashboard_token_stat
+
+- name: Tạo Bearer Token đăng nhập cho admin-user
   shell: |
     KUBECONFIG=/etc/kubernetes/admin.conf kubectl create token admin-user -n kubernetes-dashboard --duration=8760h
   register: dashboard_admin_token
-  changed_when: false
+  when: not dashboard_token_stat.stat.exists
+  no_log: true
+  changed_when: true
 
 - name: Lưu token vào file /etc/kubernetes/dashboard-token.txt trên Master
   copy:
     dest: /etc/kubernetes/dashboard-token.txt
     content: "{{ dashboard_admin_token.stdout }}"
     mode: '0600'
+  when: not dashboard_token_stat.stat.exists
+  no_log: true
 
-- name: Hiển thị Token đăng nhập Kubernetes Dashboard
+- name: Thông báo về Token đăng nhập Kubernetes Dashboard
   debug:
-    var: dashboard_admin_token.stdout
+    msg: "Kubernetes Dashboard token đã được tạo và lưu an toàn tại /etc/kubernetes/dashboard-token.txt trên Master node."

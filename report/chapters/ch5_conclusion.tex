@@ -1,0 +1,28 @@
+\chapter{Kết Luận \& Hướng Phát Triển}
+\label{ch:conclusion}
+
+\section{Kết quả đạt được của đề tài}
+Dự án đã nghiên cứu, thiết kế và triển khai thành công một hệ sinh thái an ninh hạ tầng toàn diện cho ứng dụng Microservices trên nền tảng đám mây công cộng AWS Singapore, đạt được đầy đủ các mục tiêu đề ra:
+
+\begin{enumerate}
+    \item \textbf{Phân bổ tài nguyên hợp lý \& Tối ưu chi phí}: Hệ thống bao gồm 6 máy chủ EC2 với tổng lượng CPU là 12 vCPU (trong hạn mức 14 vCPU của tài khoản AWS Singapore), vận hành mượt mà, phân chia tải tối ưu giữa cụm Kubernetes, tường lửa biên và máy chủ giám sát an ninh.
+    \item \textbf{Kiến trúc Dual-Gateway HA \& Cân bằng tải Active-Active}: Triển khai AWS Network Load Balancer (NLB L4) kết hợp 2 Gateway tại 2 Availability Zones độc lập. Cơ chế LAN Masquerade giải quyết triệt để lỗi định tuyến bất đối xứng (Asymmetric Routing), cho phép hệ thống tự động chuyển mạch dự phòng (Failover) trong vòng 15 giây mà không làm gián đoạn dịch vụ (\textit{Zero Downtime}).
+    \item \textbf{Quy hoạch cổng dịch vụ thông minh}: Tận dụng địa chỉ DNS NLB duy nhất để phân phối 4 cổng dịch vụ độc lập (\textbf{80} cho HTTP Web, \textbf{443} cho HTTPS TLS, \textbf{7443} cho Rancher Manager và \textbf{8443} cho Wazuh SIEM API) mà không xảy ra xung đột.
+    \item \textbf{Phòng thủ an ninh đa lớp vững chắc (Defense-in-Depth)}:
+    \begin{itemize}
+        \item \textit{Tầng biên}: Dual Gateway cô lập mạng nội bộ, kết hợp Suricata IDS/IPS phát hiện và ngăn chặn tức thì 100\% các payload tấn công Web nguy hiểm (SQLi, XSS, Path Traversal).
+        \item \textit{Tầng điều hành}: Máy chủ SOC Wazuh SIEM chuyên biệt (\texttt{10.0.20.10}) thu thập tập trung, tương quan cảnh báo an ninh từ 4 Agent (Server, Gateway 1, Gateway 2, K8s Master Audit).
+        \item \textit{Tầng ứng dụng}: Chính sách Zero-Trust NetworkPolicy chặn triệt để nguy cơ tấn công di chuyển ngang vào cổng thanh toán nhạy cảm.
+    \end{itemize}
+    \item \textbf{Tính sẵn sàng cao \& Tự động co giãn}: Cụm K8s v1.31 trải dài trên 2 Vùng sẵn sàng (\texttt{ap-southeast-1a} và \texttt{ap-southeast-1b}), kết hợp PodDisruptionBudget và HPA v2 tự động mở rộng Pod khi chịu áp lực tải cao.
+    \item \textbf{Trải nghiệm quản trị hiện đại}: Rancher Server cung cấp bảng điều khiển đồ họa trực quan, giám sát sức khỏe cụm K8s và tài nguyên thời gian thực.
+\end{enumerate}
+
+\section{Hạn chế và Hướng phát triển trong tương lai}
+Mặc dù hệ thống đã vận hành hoàn chỉnh các tính năng cốt lõi và đạt chuẩn High Availability, trong tương lai có thể tiếp tục mở rộng và nâng cấp theo các định hướng sau:
+
+\begin{itemize}
+    \item \textbf{Mã hóa lưu lượng nội bộ với Service Mesh}: Triển khai Istio hoặc Linkerd để tự động kích hoạt tính năng \textit{Mutual TLS (mTLS)}, mã hóa toàn diện dữ liệu truyền thông giữa các Pod bên trong cụm K8s.
+    \item \textbf{Quản lý bí mật an toàn với HashiCorp Vault}: Tích hợp Vault để quản lý và tự động xoay vòng chứng chỉ, mật khẩu cơ sở dữ liệu thay vì lưu trữ dạng Secret tĩnh trong Kubernetes.
+    \item \textbf{Tự động hóa triển khai liên tục GitOps}: Ứng dụng ArgoCD hoặc FluxCD để tự động đồng bộ trạng thái cấu hình cụm K8s trực tiếp từ Git repository.
+\end{itemize}

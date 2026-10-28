@@ -29,7 +29,7 @@
 
 - name: Khởi tạo Kubernetes Control-Plane với kubeadm
   shell: |
-    kubeadm init --config /etc/kubernetes/kubeadm-config.yaml --ignore-preflight-errors=all
+    kubeadm init --config /etc/kubernetes/kubeadm-config.yaml
   when: not kubeadmin_conf.stat.exists
 
 - name: Cấu hình thư mục .kube cho user ubuntu và root
@@ -37,6 +37,7 @@
     mkdir -p /home/ubuntu/.kube /root/.kube
     cp -f /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
     cp -f /etc/kubernetes/admin.conf /root/.kube/config
+    chmod 600 /home/ubuntu/.kube/config /root/.kube/config
     chown -R ubuntu:ubuntu /home/ubuntu/.kube
   changed_when: false
 
@@ -84,7 +85,7 @@
 
 - name: Đợi Control-Plane Node sẵn sàng (Ready)
   shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes | grep 'Ready'
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes | grep -w 'Ready'
   register: node_ready
   until: node_ready.rc == 0
   retries: 25
@@ -98,4 +99,4 @@
 
 - name: Lưu lệnh join vào hostvars cho các Worker nodes sử dụng
   set_fact:
-    k8s_join_command: "{{ join_cmd_raw.stdout }} --ignore-preflight-errors=all"
+    k8s_join_command: "{{ join_cmd_raw.stdout }}"

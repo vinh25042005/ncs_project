@@ -13,6 +13,7 @@
     src: "{{ item }}"
     dest: /opt/k8s/
     mode: '0644'
+    directory_mode: '0755'
   with_first_found:
     - "{{ playbook_dir }}/k8s/"
     - "{{ playbook_dir }}/../k8s/"
@@ -39,3 +40,13 @@
     KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f "$DIR/"
   register: internal_tools_apply
   changed_when: "'created' in internal_tools_apply.stdout or 'configured' in internal_tools_apply.stdout"
+
+- name: Kiểm tra trạng thái HPA của Online Boutique
+  shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get hpa -n online-boutique
+  register: hpa_output
+  changed_when: false
+
+- name: Hiển thị trạng thái HPA của Online Boutique
+  debug:
+    var: hpa_output.stdout_lines

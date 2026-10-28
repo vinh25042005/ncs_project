@@ -7,6 +7,10 @@ master_ip: "10.0.10.10"
 flannel_manifest_url: "https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml"
 ingress_nginx_manifest_url: "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/baremetal/deploy.yaml"
 
+# Wazuh SIEM Server độc lập trong Management Subnet
+wazuh_server_ip: "10.0.20.10"
+wazuh_manager_ip: "10.0.20.10"
+
 # Giới hạn K8s Audit Log trên kube-apiserver (tránh đầy đĩa Master)
 # Mỗi file tối đa audit_log_maxsize MB; giữ tối đa audit_log_maxbackup file cũ; xóa file cũ hơn audit_log_maxage ngày
 audit_log_maxsize: 100

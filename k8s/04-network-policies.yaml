@@ -33,14 +33,29 @@ spec:
             matchLabels:
               app: loadgenerator
         - ipBlock:
+            cidr: 10.0.0.0/16
+        - ipBlock:
             cidr: 10.244.0.0/16
-        - ipBlock:
-            cidr: 10.0.10.0/24
-        - ipBlock:
-            cidr: 10.0.11.0/24
       ports:
         - protocol: TCP
           port: 8080
+
+---
+# Cho phép Kubelet health checks và pod-to-pod trong online-boutique
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internal-and-healthchecks
+  namespace: online-boutique
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        - ipBlock:
+            cidr: 10.244.0.0/16
 
 ---
 # Cart Service: chỉ nhận traffic từ Frontend và CheckoutService
@@ -259,7 +274,7 @@ spec:
               app: checkoutservice
       ports:
         - protocol: TCP
-          port: 5000
+          port: 8080
 ---
 # Ad Service: nhận traffic từ Frontend
 apiVersion: networking.k8s.io/v1

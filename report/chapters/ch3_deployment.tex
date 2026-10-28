@@ -1,0 +1,218 @@
+\chapter{Triển khai các thành phần}
+\label{ch:deployment}
+
+Xây dựng hệ thống theo \textit{Infrastructure as Code (IaC)}, giúp hạ tầng có khả năng tái tạo tự động, dễ mở rộng, dễ triển khai nhiều lần, loại bỏ các sai sót từ thao tác cấu hình thủ công.
+
+\section{Khởi tạo hạ tầng AWS bằng Terraform}
+Hạ tầng mạng, cân bằng tải và máy chủ được dựng bằng mã nguồn Terraform trong thư mục \texttt{terraform/}. Trạng thái hệ thống (\textit{Terraform State}) được lưu trữ tập trung và dùng khóa trạng thái (\textit{State Locking}) trên AWS S3 Bucket và DynamoDB:
+
+\begin{lstlisting}[language=bash, caption={Quy trình thực thi khởi tạo hạ tầng Terraform}]
+# Khoi tao cac Provider va ket noi S3 Backend
+terraform init
+
+# Kiem tra ke hoach thay doi tai nguyen
+terraform plan
+
+# Ap dung trien khai ha tang (AWS NLB, 2 Gateways, 3 K8s Nodes, 1 Wazuh Server)
+terraform apply -auto-approve
+\end{lstlisting}
+
+\subsection{Khởi tạo AWS Network Load Balancer (NLB L4)}
+Hệ thống sử dụng AWS NLB để phân phối lưu lượng Internet vào 2 Gateway tại 2 AZ:
+\begin{lstlisting}[language=bash, caption={Đoạn mã khai báo AWS NLB trong Terraform}]
+resource "aws_lb" "nlb" {
+  name               = "ncs-project-nlb"
+  internal           = false
+  load_balancer_type = "network"
+  subnets            = [aws_subnet.public_wan.id, aws_subnet.public_wan_b.id]
+}
+
+# 4 Target Groups cho cac cong dich vu: 80, 443, 7443 va 8443
+resource "aws_lb_target_group" "tcp" {
+  for_each    = { "80" = 80, "443" = 443, "7443" = 7443, "8443" = 8443 }
+  port        = each.value
+  protocol    = "TCP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+
+  health_check {
+    protocol            = "TCP"
+    port                = each.value
+    interval            = 10
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+\end{lstlisting}
+
+\subsection{Cấu hình 2 card mạng cho máy chủ Gateway}
+Mỗi Gateway được trang bị 2 Card mạng ảo (\textit{Elastic Network Interface - ENI}): Card WAN kết nối trực tiếp Internet và Card LAN kết nối vào Subnet nội bộ:
+\begin{lstlisting}[language=bash, caption={Đoạn mã cấu hình Dual-ENI trong Terraform}]
+resource "aws_instance" "pfsense" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t3.small"
+
+  network_interface {
+    network_interface_id = aws_network_interface.pfsense_wan.id # Card ens5 (Public)
+    device_index         = 0
+  }
+  network_interface {
+    network_interface_id = aws_network_interface.pfsense_lan.id # Card ens6 (Private)
+    device_index         = 1
+  }
+}
+\end{lstlisting}
+
+\section{Cấu hình Gateway và hệ thống Suricata IDS/IPS}
+Được tự động hóa bằng Ansible playbook \texttt{ansible/site.yml} áp dụng role \texttt{gateway} trên cả hai Gateway:
+
+\subsection{1. Cấu hình định tuyến và IPTables NAT (Chống Asymmetric Routing)}
+Kích hoạt chuyển tiếp gói tin Linux, thiết lập DNAT chuyển tiếp cổng và giải quyết triệt để lỗi định tuyến bất đối xứng bằng LAN Masquerade:
+\begin{lstlisting}[language=bash, caption={Cấu hình IPTables Port Forwarding và LAN Masquerade trên Gateway}]
+# 1. Kich hoat IP Forwarding
+sudo sysctl -w net.ipv4.ip_forward=1
+
+# 2. PREROUTING DNAT: Chuyen tiep cong toi dung dich vu noi bo
+sudo iptables -t nat -A PREROUTING -i ens5 -p tcp --dport 80 -j DNAT --to-destination 10.0.10.10:80
+sudo iptables -t nat -A PREROUTING -i ens5 -p tcp --dport 443 -j DNAT --to-destination 10.0.10.10:443
+sudo iptables -t nat -A PREROUTING -i ens5 -p tcp --dport 7443 -j DNAT --to-destination 10.0.10.10:30443
+sudo iptables -t nat -A PREROUTING -i ens5 -p tcp --dport 8443 -j DNAT --to-destination 10.0.20.10:55000
+
+# 3. LAN Masquerade: Rewrite Source IP ve IP LAN Gateway (Chong Asymmetric Routing)
+sudo iptables -t nat -A POSTROUTING -o ens6 -j MASQUERADE
+
+# 4. WAN Masquerade: Source NAT cho luong Egress cua K8s & Wazuh ra Internet
+sudo iptables -t nat -A POSTROUTING -o ens5 -j MASQUERADE
+
+# Luu cau hinh vinh vien tranh bi mat khi reboot
+sudo netfilter-persistent save
+\end{lstlisting}
+
+\subsection{2. Cấu hình tập rule phát hiện tấn công cho Suricata}
+Suricata được cấu hình lắng nghe trực tiếp trên card WAN \texttt{ens5} ở chế độ \texttt{af-packet}. Tập rule tại \texttt{/etc/suricata/rules/local.rules} nhận diện tấn công ứng dụng Web:
+\begin{lstlisting}[language=bash, caption={Tập luật phát hiện tấn công mạng trong local.rules của Suricata}]
+# Nhan dien SQL Injection (UNION SELECT, OR 1=1)
+alert http any any -> any any (msg:"ATTACK: SQL Injection Union Select Detected"; flow:to_server,established; content:"UNION"; nocase; content:"SELECT"; nocase; sid:1000001; rev:1;)
+alert http any any -> any any (msg:"ATTACK: SQL Injection OR 1=1 Detected"; flow:to_server,established; content:"or"; nocase; content:"1=1"; sid:1000002; rev:1;)
+
+# Nhan dien Directory Traversal / LFI (/etc/passwd, ../..)
+alert http any any -> any any (msg:"ATTACK: Directory Traversal /etc/passwd Detected"; flow:to_server,established; content:"/etc/passwd"; sid:1000003; rev:1;)
+alert http any any -> any any (msg:"ATTACK: Directory Traversal Path Manipulation"; flow:to_server,established; content:"../.."; sid:1000004; rev:1;)
+
+# Nhan dien Cross-Site Scripting (XSS)
+alert http any any -> any any (msg:"ATTACK: XSS Payload Detected"; flow:to_server,established; content:"<script>"; nocase; sid:1000005; rev:1;)
+
+# Nhan dien do quet tep tin he thong nhay cam
+alert http any any -> any any (msg:"ATTACK: Sensitive File Probe (.env/.git)"; flow:to_server,established; content:".env"; sid:1000006; rev:1;)
+\end{lstlisting}
+
+\section{Khởi tạo cụm Upstream Kubernetes v1.31 Multi-AZ}
+Cụm được triển khai bằng \texttt{kubeadm} phiên bản \textbf{Kubernetes v1.31.14}:
+\begin{enumerate}
+    \item \textbf{Khởi tạo Control Plane trên Master node}:
+    \begin{lstlisting}[language=bash]
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=10.0.10.10
+    \end{lstlisting}
+    \item \textbf{Cài đặt mạng Flannel CNI}:
+    \begin{lstlisting}[language=bash]
+kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+    \end{lstlisting}
+    \item \textbf{Join các Worker node}:
+    Chạy lệnh \texttt{kubeadm join} trên Worker 1 (\texttt{10.0.10.139} tại AZ-a) và Worker 2 (\texttt{10.0.11.21} tại AZ-b) để hoàn tất liên kết cụm Multi-AZ 3 node.
+\end{enumerate}
+
+\section{Triển khai Rancher Management Server}
+Rancher Server được triển khai trên cụm K8s thông qua Helm chart của SUSE:
+\begin{lstlisting}[language=bash, caption={Lệnh triển khai Rancher Server bằng Helm}]
+helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
+helm repo update
+
+# Cai dat Rancher vao namespace cattle-system
+helm install rancher rancher-prime/rancher \
+  --namespace cattle-system \
+  --create-namespace \
+  --set hostname=rancher.lab \
+  --set bootstrapPassword=AdminNCSProject2026! \
+  --set replicas=1
+\end{lstlisting}
+
+Để tách Rancher khỏi cổng Ingress của ứng dụng thương mại, sử dụng Service \texttt{NodePort} để gắn cổng nội bộ \textbf{\texttt{30443}} với Pod của Rancher:
+\begin{lstlisting}[language=yaml, caption={Khai báo NodePort Service cho Rancher Server}]
+apiVersion: v1
+kind: Service
+metadata:
+  name: rancher-nodeport
+  namespace: cattle-system
+spec:
+  type: NodePort
+  selector:
+    app: rancher
+  ports:
+    - name: https-nodeport
+      port: 443
+      targetPort: 443
+      nodePort: 30443
+      protocol: TCP
+\end{lstlisting}
+
+\section{Triển khai Ứng dụng Microservices \& Zero-Trust Network Policy}
+Toàn bộ 12 dịch vụ của Google Online Boutique được triển khai đồng loạt trong namespace \texttt{online-boutique}.
+
+\begin{lstlisting}[language=yaml, caption={Chính sách NetworkPolicy Zero-Trust bảo vệ PaymentService}]
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: paymentservice-zero-trust
+  namespace: online-boutique
+spec:
+  podSelector:
+    matchLabels:
+      app: paymentservice
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Chi chap nhan ket noi den tu CheckoutService qua cong gRPC 50051
+    - from:
+        - podSelector:
+            matchLabels:
+              app: checkoutservice
+      ports:
+        - protocol: TCP
+          port: 50051
+  egress:
+    # Chi cho phep Egress giai ma DNS CoreDNS noi bo
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+\end{lstlisting}
+
+\section{Cài đặt Wazuh SIEM trên Máy chủ Chuyên biệt \& Tích hợp Agents}
+\begin{enumerate}
+    \item \textbf{Cài đặt Wazuh Manager trên máy chủ \texttt{wazuh-siem} (10.0.20.10)}: Cài đặt gói \texttt{wazuh-manager=4.14.9-1}. Tắt module \texttt{<vulnerability-detection>} để tối ưu dung lượng đĩa và tài nguyên RAM, bảo đảm máy chủ luôn hoạt động mượt mà và ổn định.
+    \item \textbf{Cài đặt và kết nối Wazuh Agent trên Gateway 1, Gateway 2 và K8s Master}:
+    \begin{itemize}
+        \item Đăng ký Agent tự động qua Ansible role \texttt{wazuh\_agent} kết nối tới IP \texttt{10.0.20.10}.
+        \item Cấu hình Agent trên Gateway đọc trực tiếp file nhật ký cảnh báo của Suricata dạng JSON:
+        \begin{lstlisting}[language=xml]
+<localfile>
+  <log_format>json</log_format>
+  <location>/var/log/suricata/eve.json</location>
+</localfile>
+        \end{lstlisting}
+        \item Cấu hình Agent trên Master node thu thập nhật ký K8s audit log tại \texttt{/var/log/kubernetes/audit.log}.
+    \end{itemize}
+\end{enumerate}
+
+\section{Bảo mật hạ tầng Cloud \& Kubernetes Hardening}
+\begin{itemize}
+    \item \textbf{Bảo vệ thông tin xác thực AWS qua IMDSv2}: Toàn bộ máy chủ EC2 đều cấu hình \texttt{http\_tokens = "required"} và \texttt{http\_put\_response\_hop\_limit = 2}, ngăn chặn hình thức tấn công SSRF đánh cắp IAM Role credentials.
+    \item \textbf{Mã hóa đĩa cứng tầng lưu trữ}: 100\% các ổ cứng EBS (Root Volume) đều được mã hóa bằng khóa quản lý AWS KMS (\texttt{encrypted = true}).
+    \item \textbf{PodDisruptionBudget}: Áp dụng \texttt{maxUnavailable: 1} cho các dịch vụ cốt lõi (\texttt{frontend}, \texttt{cartservice}, \texttt{checkoutservice}).
+    \item \textbf{PodAntiAffinity}: Cấu hình phân tán (\texttt{preferredDuringSchedulingIgnoredDuringExecution}) cho các Pod \texttt{frontend}, đảm bảo các bản sao Pod được ưu tiên xếp đều trên cả 2 Worker node ở 2 Availability Zones khác nhau.
+\end{itemize}

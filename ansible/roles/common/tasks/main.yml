@@ -1,12 +1,13 @@
 ---
-# Role: common — Cấu hình OS, containerd, swap đệm và cài đặt kubeadm/kubelet/kubectl
+# Role: common — Cấu hình OS, containerd và cài đặt kubeadm/kubelet/kubectl
 # Áp dụng cho toàn bộ các node trong cụm 
-- name: Đợi và giải phóng tiến trình apt lock nếu có
+- name: Đợi và giải phóng tiến trình unattended-upgrades nếu có
   shell: |
     systemctl stop unattended-upgrades 2>/dev/null || true
-    killall -9 apt-get 2>/dev/null || true
-    killall -9 apt 2>/dev/null || true
-    rm -f /var/lib/apt/lists/lock /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+      echo "Đang đợi tiến trình APT khác hoàn tất..."
+      sleep 3
+    done
     dpkg --configure -a
   changed_when: false
   ignore_errors: true
@@ -35,15 +36,11 @@
   command: sysctl --system
   changed_when: false
 
-- name: Cấu hình 2GB Swapfile 
+- name: Tắt Swap hoàn toàn theo chuẩn Kubernetes
   shell: |
-    if [ ! -f /swapfile ]; then
-      fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
-      chmod 600 /swapfile
-      mkswap /swapfile
-      swapon /swapfile
-      echo '/swapfile none swap sw 0 0' >> /etc/fstab
-    fi
+    swapoff -a
+    sed -i '/swap/d' /etc/fstab
+    rm -f /swapfile
   changed_when: false
 
 - name: Cài đặt các gói phụ trợ cơ bản
@@ -65,15 +62,21 @@
     name: containerd
     state: present
 
-- name: Cấu hình containerd với SystemdCgroup = true và pause:3.10
+- name: Tạo cấu hình containerd nếu chưa tồn tại
   shell: |
     mkdir -p /etc/containerd
     containerd config default > /etc/containerd/config.toml
     sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
     sed -i 's|sandbox_image = .*|sandbox_image = "registry.k8s.io/pause:3.10"|' /etc/containerd/config.toml
-    systemctl restart containerd
-    systemctl enable containerd
-  changed_when: true
+  args:
+    creates: /etc/containerd/config.toml
+  notify: restart containerd
+
+- name: Đảm bảo dịch vụ containerd được bật và chạy
+  systemd:
+    name: containerd
+    state: started
+    enabled: yes
 
 - name: Tạo thư mục chứa keyring Kubernetes
   file:
@@ -110,9 +113,7 @@
     - kubeadm
     - kubectl
 
-- name: "Cấu hình Kubelet cho phép Swap"
-  copy:
-    src: kubelet
-    dest: /etc/default/kubelet
-    mode: '0644'
-  notify: restart kubelet
+- name: Đảm bảo dịch vụ kubelet được bật
+  systemd:
+    name: kubelet
+    enabled: yes

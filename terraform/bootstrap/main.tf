@@ -104,7 +104,7 @@ output "dynamodb_table_name" {
 }
 
 output "backend_config_snippet" {
-  description = "Đoạn cấu hình backend copy vào terraform/main.tf"
+  description = "Đoạn cấu hình backend copy vào terraform/versions.tf"
   value       = <<-EOT
     backend "s3" {
       bucket         = "${aws_s3_bucket.tfstate.id}"
@@ -112,7 +112,6 @@ output "backend_config_snippet" {
       region         = "${var.region}"
       encrypt        = true
       dynamodb_table = "${aws_dynamodb_table.tflocks.name}"
-      use_lockfile   = true
     }
   EOT
 }

@@ -7,9 +7,14 @@
     KUBECONFIG=/etc/kubernetes/admin.conf kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null || true
   changed_when: false
 
+- name: Dọn dẹp Job admission webhook cũ nếu có (tránh lỗi immutable Job spec khi re-apply)
+  ansible.builtin.shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl delete job -n ingress-nginx --all --ignore-not-found=true
+  changed_when: false
+
 - name: Cài đặt Ingress-NGINX Bare-metal Manifests
-  shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/baremetal/deploy.yaml
+  ansible.builtin.shell: |
+    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f {{ ingress_nginx_manifest_url }}
   changed_when: false
 
 - name: Cấu hình Ingress-NGINX sử dụng HostNetwork để lắng nghe trực tiếp trên cổng 80 & 443

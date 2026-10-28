@@ -12,18 +12,24 @@ terraform {
     }
   }
 
-  # Cấu hình lưu trữ State tập trung trên S3 + State Locking
+  # Cấu hình lưu trữ State tập trung trên S3 + State Locking qua DynamoDB
   backend "s3" {
     bucket         = "ncs-project-tfstate-yuzdm6"
     key            = "prod/terraform.tfstate"
     region         = "ap-southeast-1"
     encrypt        = true
     dynamodb_table = "ncs-project-tflocks"
-    use_lockfile   = true
   }
 }
 
 provider "aws" {
   region  = var.region
   profile = var.aws_profile
+
+  default_tags {
+    tags = {
+      Project   = var.project_name
+      ManagedBy = "Terraform"
+    }
+  }
 }

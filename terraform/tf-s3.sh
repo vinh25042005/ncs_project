@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Đọc tên bucket từ backend trong main.tf
+# Đọc tên bucket từ backend trong versions.tf
 BUCKET=$(grep -E '^\s*bucket\s*=' versions.tf | awk -F'"' '{print $2}')
 S3_VARS_PATH="s3://${BUCKET}/vars/terraform.tfvars"
 
@@ -33,12 +33,18 @@ case "$1" in
 
   plan)
     echo ">>> Đang chạy terraform plan với biến từ S3..."
-    terraform plan -var-file=<(aws s3 cp "${S3_VARS_PATH}" -)
+    TEMP_VARS=$(mktemp --suffix=.tfvars)
+    trap 'rm -f "$TEMP_VARS"' EXIT INT TERM
+    aws s3 cp "${S3_VARS_PATH}" "$TEMP_VARS"
+    terraform plan -var-file="$TEMP_VARS"
     ;;
 
   apply)
     echo ">>> Đang chạy terraform apply với biến từ S3..."
-    terraform apply -var-file=<(aws s3 cp "${S3_VARS_PATH}" -)
+    TEMP_VARS=$(mktemp --suffix=.tfvars)
+    trap 'rm -f "$TEMP_VARS"' EXIT INT TERM
+    aws s3 cp "${S3_VARS_PATH}" "$TEMP_VARS"
+    terraform apply -var-file="$TEMP_VARS"
     ;;
 
   *)

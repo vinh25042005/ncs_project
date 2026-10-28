@@ -5,8 +5,12 @@ rules:
     resources:
       - group: ""
         resources: ["secrets", "configmaps"]
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["pods/exec"]
   - level: RequestResponse
     resources:
       - group: ""
-        resources: ["pods", "pods/exec"]
+        resources: ["pods"]
   - level: Metadata

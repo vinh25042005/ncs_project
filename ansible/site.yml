@@ -7,13 +7,15 @@
 - name: Giai đoạn 1 - Tự động hóa cấu hình Gateway & Suricata IDS/IPS
   hosts: gateway
   become: yes
+  tags: [gateway]
   roles:
     - gateway
 
-# Giai đoạn 2: Chuẩn bị OS, containerd, swap đệm và cài kubeadm/kubelet/kubectl trên mọi node
+# Giai đoạn 2: Chuẩn bị OS, containerd và cài kubeadm/kubelet/kubectl trên mọi node
 - name: Giai đoạn 2 - Cấu hình nền tảng trên toàn bộ các node (Common Prerequisites)
   hosts: k8s_cluster
   become: yes
+  tags: [common]
   roles:
     - common
 
@@ -21,6 +23,7 @@
 - name: Giai đoạn 3 - Khởi tạo Kubernetes Control-Plane (kubeadm init)
   hosts: master
   become: yes
+  tags: [master]
   roles:
     - master
 
@@ -28,6 +31,7 @@
 - name: Giai đoạn 4 - Kết nối Worker nodes vào cụm (kubeadm join)
   hosts: workers
   become: yes
+  tags: [worker, workers]
   roles:
     - worker
 
@@ -35,6 +39,7 @@
 - name: Giai đoạn 5 - Triển khai Ingress-NGINX Controller
   hosts: master
   become: yes
+  tags: [ingress]
   roles:
     - ingress
 
@@ -42,6 +47,7 @@
 - name: Giai đoạn 6 - Triển khai Metrics-Server cho HPA Autoscaling
   hosts: master
   become: yes
+  tags: [metrics, metrics_server]
   roles:
     - metrics_server
 
@@ -49,6 +55,7 @@
 - name: Giai đoạn 7 - Triển khai Kubernetes Dashboard Web UI
   hosts: master
   become: yes
+  tags: [dashboard, kubernetes_dashboard]
   roles:
     - kubernetes_dashboard
 
@@ -56,32 +63,42 @@
 - name: Giai đoạn 7.5 - Cài bộ thi hành NetworkPolicy
   hosts: master
   become: yes
-  tags: [netpol]
+  tags: [netpol, netpol_enforcer]
   roles:
     - netpol_enforcer
 
-# Giai đoạn 8: Triển khai 12 microservices của Google Online Boutique từ thư mục k8s/
+# Giai đoạn 8: Triển khai các microservices của Google Online Boutique từ thư mục k8s/
 - name: Giai đoạn 8 - Triển khai Google Online Boutique và Network Policies
   hosts: master
   become: yes
-  tags: [netpol]
+  tags: [app, online_boutique, netpol]
   roles:
     - online_boutique
 
-# Giai đoạn 9: Wazuh Manager trên master (thu thập log + sinh cảnh báo)
-- name: Giai đoạn 9 - Wazuh Manager + đọc K8s audit log
-  hosts: master
+# Giai đoạn 9: Wazuh Manager trên máy chủ SIEM chuyên biệt (Management Subnet 10.0.20.10)
+- name: Giai đoạn 9 - Wazuh Manager trên máy chủ SIEM chuyên biệt
+  hosts: wazuh
   become: yes
-  tags: [wazuh]
+  tags: [wazuh, wazuh_manager]
   roles:
     - wazuh_manager
 
-# Giai đoạn 10: Wazuh Agent trên gateway (đẩy log Suricata eve.json)
-- name: Giai đoạn 10 - Wazuh Agent (gateway + Suricata)
+# Giai đoạn 10: Wazuh Agent trên các Gateway (đẩy log Suricata eve.json)
+- name: Giai đoạn 10 - Wazuh Agent trên Gateway (Suricata eve.json)
   hosts: gateway
   become: yes
-  tags: [wazuh]
+  tags: [wazuh, wazuh_agent]
   vars:
     wazuh_agent_suricata: true
+  roles:
+    - wazuh_agent
+
+# Giai đoạn 10.5: Wazuh Agent trên K8s Master (đẩy K8s audit.log)
+- name: Giai đoạn 10.5 - Wazuh Agent trên Master (K8s audit log)
+  hosts: master
+  become: yes
+  tags: [wazuh, wazuh_agent]
+  vars:
+    wazuh_agent_k8s_audit: true
   roles:
     - wazuh_agent
