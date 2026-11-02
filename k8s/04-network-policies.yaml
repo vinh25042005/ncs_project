@@ -82,7 +82,7 @@ spec:
         - protocol: TCP
           port: 7070
 ---
-# Redis Cart: CHỈ nhận traffic từ CartService (Ngăn chặn truy cập trái phép vào DB cache)
+# Redis Cart: chỉ nhận traffic từ CartService 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -103,7 +103,7 @@ spec:
         - protocol: TCP
           port: 6379
 ---
-# Payment Service: CHỈ nhận traffic từ CheckoutService (Bảo vệ thông tin thanh toán)
+# Payment Service: chir nhận traffic từ CheckoutService 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

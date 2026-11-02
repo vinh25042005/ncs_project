@@ -1,5 +1,5 @@
 variable "project_name" {
-  description = "Tên dự án sử dụng để gắn nhãn (tag) tài nguyên"
+  description = "Tên dự án sử dụng để tag tài nguyên"
   type        = string
   default     = "ncs-project"
 }

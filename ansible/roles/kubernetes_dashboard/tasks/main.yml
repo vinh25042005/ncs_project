@@ -66,4 +66,4 @@
 
 - name: Thông báo về Token đăng nhập Kubernetes Dashboard
   debug:
-    msg: "Kubernetes Dashboard token đã được tạo và lưu an toàn tại /etc/kubernetes/dashboard-token.txt trên Master node."
+    msg: "Kubernetes Dashboard token lưu tại /etc/kubernetes/dashboard-token.txt "

@@ -1,5 +1,4 @@
 # Bootstrap: Tạo S3 Bucket lưu State & DynamoDB Table để State Locking
-# Chạy thư mục này ĐẦU TIÊN để tạo hạ tầng lưu trữ trạng thái trước khi khởi tạo dự án chính
 
 terraform {
   required_version = ">= 1.5.0"
@@ -29,14 +28,14 @@ variable "project_name" {
   default = "ncs-project"
 }
 
-# Tạo chuỗi ngẫu nhiên để tên S3 Bucket là duy nhất trên toàn cầu (Globally Unique)
+# Tạo chuỗi ngẫu nhiên để tên S3 Bucket là duy nhất
 resource "random_string" "suffix" {
   length  = 6
   special = false
   upper   = false
 }
 
-# 1. S3 Bucket lưu trữ Terraform State & file biến .tfvars
+# S3 Bucket lưu  Terraform State &  .tfvars
 resource "aws_s3_bucket" "tfstate" {
   bucket        = "${var.project_name}-tfstate-${random_string.suffix.result}"
   force_destroy = false
@@ -55,7 +54,7 @@ resource "aws_s3_bucket_versioning" "tfstate_versioning" {
   }
 }
 
-# Bật mã hóa máy chủ (Server-side Encryption) mặc định AES-256
+# Bật mã hóa máy chủ 
 resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate_crypto" {
   bucket = aws_s3_bucket.tfstate.id
 
@@ -76,10 +75,10 @@ resource "aws_s3_bucket_public_access_block" "tfstate_block_public" {
   restrict_public_buckets = true
 }
 
-# 2. DynamoDB Table để State Locking (Đảm bảo 2 người không apply cùng lúc)
+# 2. DynamoDB Table để State Locking
 resource "aws_dynamodb_table" "tflocks" {
   name         = "${var.project_name}-tflocks"
-  billing_mode = "PAY_PER_REQUEST" # Miễn phí theo lượt dùng, không phát sinh chi phí duy trì cố định
+  billing_mode = "PAY_PER_REQUEST" 
   hash_key     = "LockID"
 
   attribute {
@@ -104,7 +103,7 @@ output "dynamodb_table_name" {
 }
 
 output "backend_config_snippet" {
-  description = "Đoạn cấu hình backend copy vào terraform/versions.tf"
+  description = "Cấu hình backend copy vào terraform/versions.tf"
   value       = <<-EOT
     backend "s3" {
       bucket         = "${aws_s3_bucket.tfstate.id}"

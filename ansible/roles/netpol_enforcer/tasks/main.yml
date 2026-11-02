@@ -1,5 +1,5 @@
 ---
-# Role: netpol_enforcer — cài bộ thi hành NetworkPolicy cho cụm dùng Flannel
+# Role: netpol_enforcer
 - name: Cài kube-network-policies (thi hành NetworkPolicy trên nền Flannel)
   ansible.builtin.shell: |
     KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f {{ netpol_manifest_url }}

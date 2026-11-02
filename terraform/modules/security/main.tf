@@ -172,7 +172,7 @@ resource "aws_security_group" "wazuh" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # Wazuh Dashboard & API (HTTPS) - Mở cho Admin IP và mạng nội bộ VPC (qua Gateway Port Forward)
+  # Wazuh Dashboard & API (HTTPS)
   ingress {
     description     = "Wazuh Web Dashboard"
     from_port       = 443
@@ -219,7 +219,7 @@ resource "aws_security_group" "rancher" {
   description = "Security Group for Rancher K8s Management Server & Web UI"
   vpc_id      = var.vpc_id
 
-  # HTTP (chuyển hướng sang HTTPS)
+  # HTTP
   ingress {
     description = "HTTP Web Access"
     from_port   = 80
@@ -228,7 +228,7 @@ resource "aws_security_group" "rancher" {
     cidr_blocks = [var.admin_cidr]
   }
 
-  # HTTPS (Rancher Web Dashboard)
+  # HTTPS
   ingress {
     description = "HTTPS Rancher Dashboard"
     from_port   = 443

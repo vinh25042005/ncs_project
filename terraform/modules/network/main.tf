@@ -1,5 +1,4 @@
 # Module: Network
-# Tạo VPC 3 tầng: Public (WAN pfSense), Private (K3s Nodes), Management (Wazuh SIEM)
 
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
@@ -44,7 +43,7 @@ resource "aws_subnet" "public_wan_b" {
   }
 }
 
-# 2. Private Subnets (K3s Cluster - Master & Workers qua 2 AZs)
+# 2. Private Subnets 
 resource "aws_subnet" "private_k8s" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = var.private_k8s_cidr

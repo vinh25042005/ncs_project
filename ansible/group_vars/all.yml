@@ -11,7 +11,7 @@ ingress_nginx_manifest_url: "https://raw.githubusercontent.com/kubernetes/ingres
 wazuh_server_ip: "10.0.20.10"
 wazuh_manager_ip: "10.0.20.10"
 
-# Giới hạn K8s Audit Log trên kube-apiserver (tránh đầy đĩa Master)
+# Giới hạn K8s Audit Log trên kube-apiserver 
 # Mỗi file tối đa audit_log_maxsize MB; giữ tối đa audit_log_maxbackup file cũ; xóa file cũ hơn audit_log_maxage ngày
 audit_log_maxsize: 100
 audit_log_maxbackup: 10

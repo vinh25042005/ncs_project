@@ -1,13 +1,12 @@
 ---
-# Role: worker — Tham gia Worker node vào cụm Kubernetes (kubeadm join)
-# ====================================================================
+# Role: worker 
 
 - name: Kiểm tra xem Worker node đã tham gia cụm chưa
   stat:
     path: /etc/kubernetes/kubelet.conf
   register: kubelet_conf
 
-- name: Lấy lệnh join token từ Master nếu chưa có trong bộ nhớ
+- name: Lấy lệnh join token từ Master
   command: kubeadm token create --print-join-command
   delegate_to: "{{ groups['master'][0] }}"
   register: fallback_join_cmd

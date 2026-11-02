@@ -1,4 +1,2 @@
 ---
-# Flannel KHÔNG thi hành NetworkPolicy. kube-network-policies (kubernetes-sigs)
-# là 1 DaemonSet ở kube-system, không cần CRD, chạy cùng Flannel. Ghim phiên bản.
 netpol_manifest_url: "https://raw.githubusercontent.com/kubernetes-sigs/kube-network-policies/v1.1.2/install.yaml"

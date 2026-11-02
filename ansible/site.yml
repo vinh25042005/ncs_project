@@ -1,7 +1,5 @@
 ---
-# Playbook: site.yml — Triển khai tự động toàn diện hệ thống an ninh & cụm K8s
-# NCS Project: pfSense/Linux Gateway Suricata IDS/IPS + Upstream K8s v1.31 + Metrics-Server + Online Boutique
-# ==========================================================================================================
+# NCS Project: pfSense/Linux Gateway Suricata IDS/IPS + K8s v1.31 + Metrics-Server + Online Boutique
 
 # Giai đoạn 1: Cấu hình Gateway và kích hoạt Suricata IDS/IPS
 - name: Giai đoạn 1 - Tự động hóa cấu hình Gateway & Suricata IDS/IPS

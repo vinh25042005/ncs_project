@@ -1,7 +1,5 @@
 ---
 # Role: online_boutique — Triển khai Google Online Boutique và Network Policies lên cụm
-# ======================================================================================
-
 - name: Tạo thư mục chứa manifests trên Master node
   file:
     path: /opt/k8s

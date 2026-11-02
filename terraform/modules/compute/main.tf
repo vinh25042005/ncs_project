@@ -7,9 +7,7 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# ─────────────────────────────────────────────────────────────
-# 1. Edge Gateways (Gateway 1 in AZ-a & Gateway 2 in AZ-b)
-# ─────────────────────────────────────────────────────────────
+# 1. Edge Gateways
 
 # ── Gateway 1 (AZ-a) ──
 
@@ -102,7 +100,7 @@ resource "aws_instance" "pfsense" {
               ip addr add ${var.pfsense_lan_ip}/24 dev "$LAN_DEV" 2>/dev/null || true
               ip route del default dev "$LAN_DEV" 2>/dev/null || true
 
-              # Cấu hình Netplan lưu vĩnh viễn cấu hình 2 ENI với route chuẩn cho toàn VPC (10.0.0.0/16 qua 10.0.10.1)
+              # Cấu hình Netplan lưu cấu hình 2 ENI với route chuẩn cho toàn VPC (10.0.0.0/16 qua 10.0.10.1)
               cat << NETPLAN > /etc/netplan/60-dual-eni.yaml
               network:
                 version: 2
@@ -309,9 +307,7 @@ resource "aws_instance" "pfsense_2" {
   }
 }
 
-# ─────────────────────────────────────────────────────────────
-# 2. AWS Network Load Balancer (NLB - Multi-AZ Active-Active)
-# ─────────────────────────────────────────────────────────────
+# 2. AWS Network Load Balancer
 
 locals {
   nlb_ports = {
@@ -383,9 +379,7 @@ resource "aws_lb_listener" "tcp" {
   }
 }
 
-# ─────────────────────────────────────────────────────────────
-# 3. Dedicated Wazuh SIEM Server (Management Subnet)
-# ─────────────────────────────────────────────────────────────
+# 3. Wazuh SIEM Server (Management Subnet)
 
 resource "aws_instance" "wazuh" {
   ami                    = data.aws_ami.ubuntu.id
@@ -413,7 +407,7 @@ resource "aws_instance" "wazuh" {
               #!/bin/bash
               set -e
 
-              # OS Hardening cơ bản
+              # OS Hardening
               echo "net.ipv4.conf.all.rp_filter = 1" >> /etc/sysctl.d/99-security.conf
               echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/99-security.conf
               sysctl --system
@@ -435,9 +429,7 @@ resource "aws_instance" "wazuh" {
   }
 }
 
-# ─────────────────────────────────────────────────────────────
-# 4. Upstream Kubernetes Cluster (Master & Multi-AZ Worker Nodes)
-# ─────────────────────────────────────────────────────────────
+# 4. Upstream Kubernetes Cluster
 
 // K8s Master node
 resource "aws_instance" "k8s_master" {
@@ -466,18 +458,18 @@ resource "aws_instance" "k8s_master" {
               #!/bin/bash
               set -e
 
-              # OS Hardening cơ bản
+              # OS Hardening
               echo "net.ipv4.conf.all.rp_filter = 1" >> /etc/sysctl.d/99-security.conf
               echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/99-security.conf
               sysctl --system
 
-              # Đợi pfSense Gateway sẵn sàng trước khi kết nối Internet
+              # Đợi pfSense Gateway trước khi kết nối Internet
               until ping -c 1 -W 2 ${var.pfsense_lan_ip} >/dev/null 2>&1; do
                 echo "Đang đợi Gateway ${var.pfsense_lan_ip}..."
                 sleep 3
               done
 
-              # Tắt hoàn toàn Swap theo khuyến nghị của Upstream Kubernetes (kubeadm)
+              # Tắt swap
               swapoff -a || true
               sed -i '/swap/d' /etc/fstab
               rm -f /swapfile
@@ -493,7 +485,7 @@ resource "aws_instance" "k8s_master" {
   }
 }
 
-// K8s Worker nodes (Multi-AZ)
+// K8s Worker nodes
 resource "aws_instance" "k8s_worker" {
   count                  = var.worker_count
   ami                    = data.aws_ami.ubuntu.id
@@ -520,7 +512,7 @@ resource "aws_instance" "k8s_worker" {
               #!/bin/bash
               set -e
 
-              # OS Hardening cơ bản
+              # OS Hardening
               echo "net.ipv4.conf.all.rp_filter = 1" >> /etc/sysctl.d/99-security.conf
               echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/99-security.conf
               sysctl --system
@@ -532,7 +524,7 @@ resource "aws_instance" "k8s_worker" {
                 sleep 3
               done
 
-              # Tắt hoàn toàn Swap theo khuyến nghị của Upstream Kubernetes (kubeadm)
+              # Tắt swap
               swapoff -a || true
               sed -i '/swap/d' /etc/fstab
               rm -f /swapfile
