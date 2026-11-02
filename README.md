@@ -71,7 +71,6 @@ project_ncs/
 │       ├── worker/                    # Kubeadm join cluster
 │       ├── ingress/                   # Nginx Ingress Controller bare-metal
 │       ├── metrics_server/            # Metrics-Server phục vụ HPA và kubectl top
-│       ├── kubernetes_dashboard/      # Kubernetes Dashboard Web UI & admin token
 │       ├── netpol_enforcer/           # Bộ thi hành NetworkPolicy cho Flannel
 │       ├── online_boutique/           # Triển khai ứng dụng Online Boutique và HPA
 │       ├── wazuh_manager/             # Wazuh Manager & phân tích K8s audit log

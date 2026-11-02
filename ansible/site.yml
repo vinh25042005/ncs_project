@@ -49,15 +49,7 @@
   roles:
     - metrics_server
 
-# Giai đoạn 7: Cài đặt Kubernetes Dashboard Web UI
-- name: Giai đoạn 7 - Triển khai Kubernetes Dashboard Web UI
-  hosts: master
-  become: yes
-  tags: [dashboard, kubernetes_dashboard]
-  roles:
-    - kubernetes_dashboard
-
-# Giai đoạn 7.5: Cài bộ thi hành NetworkPolicy (kube-network-policies) cho cụm Flannel
+# Giai đoạn 7: Cài bộ thi hành NetworkPolicy (kube-network-policies) cho cụm Flannel
 - name: Giai đoạn 7.5 - Cài bộ thi hành NetworkPolicy
   hosts: master
   become: yes
