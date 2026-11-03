@@ -85,7 +85,7 @@ variable "pfsense_2_lan_ip" {
 variable "wazuh_instance_type" {
   description = "Loại máy chủ EC2 cho Dedicated Wazuh SIEM Server"
   type        = string
-  default     = "t3.small"
+  default     = "m7i-flex.large"
 }
 
 variable "k8s_master_instance_type" {
