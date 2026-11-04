@@ -8,7 +8,7 @@ resource "aws_security_group" "pfsense" {
 
   # HTTP / HTTPS từ Internet vào cổng ngoài pfSense
   ingress {
-    description = "HTTP to Ingress/App"
+    description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -16,7 +16,7 @@ resource "aws_security_group" "pfsense" {
   }
 
   ingress {
-    description = "HTTPS to Ingress/App"
+    description = "HTTPS"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -32,9 +32,8 @@ resource "aws_security_group" "pfsense" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # SSH & WebConfigurator pfSense (Chỉ mở cho admin IP)
   ingress {
-    description = "pfSense SSH Management"
+    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -42,19 +41,19 @@ resource "aws_security_group" "pfsense" {
   }
 
   ingress {
-    description = "pfSense WebGUI / Wazuh SIEM"
+    description = "Wazuh SIEM"
     from_port   = 8443
     to_port     = 8443
     protocol    = "tcp"
-    cidr_blocks = [var.admin_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    description = "Rancher Management Server WebGUI"
+    description = "Rancher"
     from_port   = 7443
     to_port     = 7443
     protocol    = "tcp"
-    cidr_blocks = [var.admin_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # Cho phép toàn bộ traffic từ mạng nội bộ VPC đi qua pfSense

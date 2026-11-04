@@ -67,7 +67,7 @@ scp -r $SSH_OPTS -i "$SSH_KEY" "$ROOT_DIR/ansible/"* ubuntu@"$PFSENSE_IP":~/ansi
 scp -r $SSH_OPTS -i "$SSH_KEY" "$ROOT_DIR/k8s/"* ubuntu@"$PFSENSE_IP":~/ansible_deploy/k8s/
 
 echo "=========================================================="
-echo ">> BƯỚC 4: THỰC THI ANSIBLE PLAYBOOK CÀI ĐẶT K8S GỐC..."
+echo ">> BƯỚC 4: CHẠY ANSIBLE PLAYBOOK CÀI ĐẶT K8S..."
 echo "=========================================================="
 TTY_FLAG=""
 [ -t 1 ] && TTY_FLAG="-t"
