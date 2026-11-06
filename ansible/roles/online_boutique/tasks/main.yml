@@ -1,13 +1,13 @@
 ---
 # Role: online_boutique — Triển khai Google Online Boutique và Network Policies lên cụm
 - name: Tạo thư mục chứa manifests trên Master node
-  file:
+  ansible.builtin.file:
     path: /opt/k8s
     state: directory
     mode: '0755'
 
 - name: Sao chép toàn bộ thư mục k8s lên Master node
-  copy:
+  ansible.builtin.copy:
     src: "{{ item }}"
     dest: /opt/k8s/
     mode: '0644'
@@ -17,17 +17,17 @@
     - "{{ playbook_dir }}/../k8s/"
 
 - name: Áp dụng toàn bộ Kubernetes manifests bằng Kustomize
-  shell: |
+  ansible.builtin.shell: |
     if [ -f /opt/k8s/kustomization.yaml ]; then
-      KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -k /opt/k8s/
+      kubectl apply -k /opt/k8s/
     else
-      KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -k /opt/k8s/k8s/
+      kubectl apply -k /opt/k8s/k8s/
     fi
-  changed_when: true
+  changed_when: false
 
 - name: Đợi các Deployments của Online Boutique khởi chạy thành công
-  shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl wait --namespace online-boutique \
+  ansible.builtin.shell: |
+    kubectl wait --namespace online-boutique \
       --for=condition=available deployment --all \
       --timeout=300s
   changed_when: false
@@ -35,16 +35,16 @@
 - name: Áp dụng namespace nội bộ thứ 2 (internal-tools) và luật cô lập chéo namespace
   ansible.builtin.shell: |
     if [ -d /opt/k8s/internal-tools ]; then DIR=/opt/k8s/internal-tools; else DIR=/opt/k8s/k8s/internal-tools; fi
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f "$DIR/"
+    kubectl apply -f "$DIR/"
   register: internal_tools_apply
   changed_when: "'created' in internal_tools_apply.stdout or 'configured' in internal_tools_apply.stdout"
 
 - name: Kiểm tra trạng thái HPA của Online Boutique
-  shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get hpa -n online-boutique
+  ansible.builtin.shell: |
+    kubectl get hpa -n online-boutique
   register: hpa_output
   changed_when: false
 
 - name: Hiển thị trạng thái HPA của Online Boutique
-  debug:
+  ansible.builtin.debug:
     var: hpa_output.stdout_lines

@@ -1,12 +1,12 @@
 ---
-# Role: master — Khởi tạo cụm Kubernetes (kubeadm init) + Flannel CNI
+# Role: master — Khởi tạo cụm Kubernetes Control-Plane (kubeadm init)
 - name: Kiểm tra xem cụm đã được khởi tạo trước đó chưa
-  stat:
+  ansible.builtin.stat:
     path: /etc/kubernetes/admin.conf
   register: kubeadmin_conf
 
 - name: Tạo thư mục cấu hình và audit log
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: directory
     mode: '0755'
@@ -15,25 +15,25 @@
     - /var/log/kubernetes
 
 - name: Tạo file audit-policy.yaml cho K8s API Server (phục vụ Wazuh SIEM)
-  copy:
+  ansible.builtin.copy:
     src: audit-policy.yaml
     dest: /etc/kubernetes/audit-policy.yaml
     mode: '0644'
 
 - name: Tạo cấu hình kubeadm-config.yaml
-  template:
+  ansible.builtin.template:
     src: kubeadm-config.yaml.j2
     dest: /etc/kubernetes/kubeadm-config.yaml
     mode: '0644'
   when: not kubeadmin_conf.stat.exists
 
 - name: Khởi tạo Kubernetes Control-Plane với kubeadm
-  shell: |
+  ansible.builtin.shell: |
     kubeadm init --config /etc/kubernetes/kubeadm-config.yaml
   when: not kubeadmin_conf.stat.exists
 
 - name: Cấu hình thư mục .kube cho user ubuntu và root
-  shell: |
+  ansible.builtin.shell: |
     mkdir -p /home/ubuntu/.kube /root/.kube
     cp -f /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
     cp -f /etc/kubernetes/admin.conf /root/.kube/config
@@ -41,14 +41,20 @@
     chown -R ubuntu:ubuntu /home/ubuntu/.kube
   changed_when: false
 
+- name: Thiết lập biến môi trường KUBECONFIG hệ thống trong /etc/environment
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    line: "KUBECONFIG={{ kubeconfig | default('/etc/kubernetes/admin.conf') }}"
+    state: present
+
 - name: Kiểm tra manifest kube-apiserver (static pod)
-  stat:
+  ansible.builtin.stat:
     path: /etc/kubernetes/manifests/kube-apiserver.yaml
   register: apiserver_manifest
   tags: [audit]
 
 - name: Giới hạn audit log trên kube-apiserver (áp dụng cả cho cụm đã dựng trước đây)
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/kubernetes/manifests/kube-apiserver.yaml
     regexp: '^\s*- --{{ item.flag }}='
     insertafter: '^\s*- --audit-log-path='
@@ -62,14 +68,14 @@
   tags: [audit]
 
 - name: Chờ kubelet khởi động lại kube-apiserver với cấu hình audit mới
-  pause:
+  ansible.builtin.pause:
     seconds: 30
   when: audit_flags is changed
   tags: [audit]
 
 - name: Đợi kube-apiserver sẵn sàng trở lại
-  shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get --raw=/readyz
+  ansible.builtin.shell: |
+    kubectl get --raw=/readyz
   register: apiserver_ready
   until: apiserver_ready.rc == 0
   retries: 30
@@ -78,25 +84,11 @@
   when: audit_flags is changed
   tags: [audit]
 
-- name: Cài đặt Flannel CNI (Mạng Pod nhẹ cho cụm)
-  shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl apply -f {{ flannel_manifest_url }}
-  changed_when: false
-
-- name: Đợi Control-Plane Node sẵn sàng (Ready)
-  shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes | grep -w 'Ready'
-  register: node_ready
-  until: node_ready.rc == 0
-  retries: 25
-  delay: 5
-  changed_when: false
-
 - name: Tạo lệnh join token mới cho Worker nodes
-  command: kubeadm token create --print-join-command
+  ansible.builtin.command: kubeadm token create --print-join-command
   register: join_cmd_raw
   changed_when: false
 
 - name: Lưu lệnh join vào hostvars cho các Worker nodes sử dụng
-  set_fact:
+  ansible.builtin.set_fact:
     k8s_join_command: "{{ join_cmd_raw.stdout }}"

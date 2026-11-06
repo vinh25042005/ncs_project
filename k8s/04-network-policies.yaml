@@ -39,13 +39,31 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-
 ---
-# Cho phép Kubelet health checks và pod-to-pod trong online-boutique
+# Cho phép Ingress Controller kết nối tới Frontend 
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ingress-host-to-frontend
+  namespace: online-boutique
+spec:
+  endpointSelector:
+    matchLabels:
+      app: frontend
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+---
+# Cho phép Kubelet health checks từ mạng máy chủ Node 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-internal-and-healthchecks
+  name: allow-kubelet-probes
   namespace: online-boutique
 spec:
   podSelector: {}
@@ -53,9 +71,19 @@ spec:
     - Ingress
   ingress:
     - from:
-        - podSelector: {}
         - ipBlock:
-            cidr: 10.244.0.0/16
+            cidr: 10.0.0.0/16
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 7070
+        - protocol: TCP
+          port: 50051
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 9555
 
 ---
 # Cart Service: chỉ nhận traffic từ Frontend và CheckoutService

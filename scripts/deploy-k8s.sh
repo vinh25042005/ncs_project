@@ -49,30 +49,28 @@ echo ">> Gateway SSH đã sẵn sàng! Đang đợi hoàn tất cài đặt pack
 ssh $SSH_OPTS -i "$SSH_KEY" ubuntu@"$PFSENSE_IP" "cloud-init status --wait"
 echo ">> Gateway và Ansible Controller đã sẵn sàng 100%!"
 
-# Thiết lập cơ chế tự động dọn dẹp khóa private key trên Gateway khi script hoàn tất hoặc bị ngắt
-cleanup() {
-  echo ">> Đang thu hồi & dọn dẹp SSH private key tạm thời trên Gateway..."
-  ssh $SSH_OPTS -i "$SSH_KEY" ubuntu@"$PFSENSE_IP" "rm -f ~/.ssh/ncs-key.pem" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
+# Kích hoạt SSH Agent và nạp private key an toàn trên máy local (không upload private key lên Gateway)
+if [ -z "${SSH_AUTH_SOCK:-}" ]; then
+  eval "$(ssh-agent -s)" >/dev/null 2>&1
+  trap 'ssh-agent -k >/dev/null 2>&1 || true' EXIT INT TERM
+fi
+ssh-add "$SSH_KEY" 2>/dev/null || true
 
 echo "=========================================================="
 echo ">> BƯỚC 3: ĐỒNG BỘ MÃ NGUỒN ANSIBLE LÊN BASTION GATEWAY..."
 echo "=========================================================="
-ssh $SSH_OPTS -i "$SSH_KEY" ubuntu@"$PFSENSE_IP" "mkdir -p ~/ansible_deploy/k8s ~/.ssh"
-scp $SSH_OPTS -i "$SSH_KEY" "$SSH_KEY" ubuntu@"$PFSENSE_IP":~/.ssh/ncs-key.pem
-ssh $SSH_OPTS -i "$SSH_KEY" ubuntu@"$PFSENSE_IP" "chmod 600 ~/.ssh/ncs-key.pem"
+ssh $SSH_OPTS -i "$SSH_KEY" ubuntu@"$PFSENSE_IP" "mkdir -p ~/ansible_deploy/k8s"
 
 scp -r $SSH_OPTS -i "$SSH_KEY" "$ROOT_DIR/ansible/"* ubuntu@"$PFSENSE_IP":~/ansible_deploy/
 scp -r $SSH_OPTS -i "$SSH_KEY" "$ROOT_DIR/k8s/"* ubuntu@"$PFSENSE_IP":~/ansible_deploy/k8s/
 
 echo "=========================================================="
-echo ">> BƯỚC 4: CHẠY ANSIBLE PLAYBOOK CÀI ĐẶT K8S..."
+echo ">> BƯỚC 4: CHẠY ANSIBLE PLAYBOOK CÀI ĐẶT K8S (SSH AGENT FORWARDING)..."
 echo "=========================================================="
 TTY_FLAG=""
 [ -t 1 ] && TTY_FLAG="-t"
 ANSIBLE_EXTRA_ARGS="${*:-}"
-ssh $TTY_FLAG $SSH_OPTS -i "$SSH_KEY" ubuntu@"$PFSENSE_IP" "cd ~/ansible_deploy && ansible-playbook -i inventory-bastion.ini site.yml $ANSIBLE_EXTRA_ARGS"
+ssh -A $TTY_FLAG $SSH_OPTS -i "$SSH_KEY" ubuntu@"$PFSENSE_IP" "cd ~/ansible_deploy && ansible-playbook -i inventory-bastion.ini site.yml $ANSIBLE_EXTRA_ARGS"
 
 echo "=========================================================="
 echo ">> BƯỚC 5: KIỂM THỬ TRUY CẬP WEBSITE QUA AWS NLB & GATEWAY..."

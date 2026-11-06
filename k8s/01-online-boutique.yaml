@@ -36,6 +36,8 @@ spec:
       serviceAccountName: adservice
       terminationGracePeriodSeconds: 5
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -111,6 +113,8 @@ spec:
     spec:
       serviceAccountName: shippingservice
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -188,6 +192,8 @@ spec:
     spec:
       serviceAccountName: checkoutservice
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -276,6 +282,8 @@ spec:
       serviceAccountName: currencyservice
       terminationGracePeriodSeconds: 5
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -351,6 +359,8 @@ spec:
       serviceAccountName: emailservice
       terminationGracePeriodSeconds: 5
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -427,6 +437,8 @@ spec:
       serviceAccountName: productcatalogservice
       terminationGracePeriodSeconds: 5
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -514,6 +526,8 @@ spec:
                         - frontend
                 topologyKey: kubernetes.io/hostname
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -614,6 +628,8 @@ spec:
       serviceAccountName: recommendationservice
       terminationGracePeriodSeconds: 5
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -696,6 +712,8 @@ spec:
       terminationGracePeriodSeconds: 5
       restartPolicy: Always
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -757,11 +775,11 @@ spec:
           value: "1"
         resources:
           requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
             cpu: 300m
             memory: 256Mi
-          limits:
-            cpu: 500m
-            memory: 512Mi
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -787,6 +805,8 @@ spec:
       serviceAccountName: cartservice
       terminationGracePeriodSeconds: 5
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -844,6 +864,12 @@ metadata:
   name: cartservice
 automountServiceAccountToken: false
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redis-cart
+automountServiceAccountToken: false
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -859,7 +885,10 @@ spec:
       labels:
         app: redis-cart
     spec:
+      serviceAccountName: redis-cart
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
@@ -931,6 +960,8 @@ spec:
       serviceAccountName: paymentservice
       terminationGracePeriodSeconds: 5
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true

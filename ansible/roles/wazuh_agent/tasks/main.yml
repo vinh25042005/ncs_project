@@ -26,7 +26,7 @@
     filename: wazuh
     state: present
 
-- name: Cài wazuh-agent (khi cài MỚI sẽ tự trỏ về manager + tự enroll)
+- name: Cài wazuh-agent 
   ansible.builtin.apt:
     name: wazuh-agent
     state: present
@@ -35,7 +35,7 @@
     WAZUH_MANAGER: "{{ wazuh_manager_ip }}"
     WAZUH_AGENT_NAME: "{{ inventory_hostname }}"
 
-- name: Đảm bảo địa chỉ manager đúng trong ossec.conf (cho cả trường hợp đã cài sẵn)
+- name: Đảm bảo địa chỉ manager đúng trong ossec.conf 
   ansible.builtin.replace:
     path: /var/ossec/etc/ossec.conf
     regexp: "<address>[^<]*</address>"

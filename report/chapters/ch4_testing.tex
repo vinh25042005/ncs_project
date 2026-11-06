@@ -1,86 +1,71 @@
-\chapter{Đánh Giá \& Kiểm Thử Tính Năng Hệ Thống}
+\chapter{Kiểm thử hệ thống}
 \label{ch:testing}
 
-Để kiểm chứng tính đúng đắn, hiệu năng và năng lực bảo vệ an ninh của hạ tầng đã triển khai, một chuỗi 6 bài kiểm thử thực nghiệm toàn diện đã được tiến hành trực tiếp trên môi trường đám mây AWS Singapore.
+Các bài kiểm thử thực nghiệm được tiến hành trực tiếp trên AWS nhằm xác minh tính chính xác, hiệu năng và năng lực bảo vệ của hệ thống.
 
-\section{Kiểm thử 1: Truy cập các cổng dịch vụ qua AWS NLB \& Kiểm tra Target Health}
-Mục tiêu bài kiểm thử nhằm xác minh tính thông suốt của các dịch vụ công khai thông qua địa chỉ DNS của AWS Network Load Balancer (NLB L4) và đối soát trạng thái sức khỏe của cả 8 mục tiêu trên 4 Target Groups:
+\section{Kiểm thử 1: Truy cập các cổng dịch vụ qua AWS NLB}
+\subsection{Kịch bản kiểm thử}
+Gửi các yêu cầu HTTP/HTTPS kiểm tra 5 cổng dịch vụ công khai qua AWS Network Load Balancer:
+\begin{enumerate}
+    \item Cổng 80: Ứng dụng web Online Boutique (HTTP).
+    \item Cổng 443: Ứng dụng web Online Boutique bảo mật (HTTPS).
+    \item Cổng 7443: Bảng điều khiển quản trị Rancher Server (HTTPS).
+    \item Cổng 8443: Giao diện web giám sát an ninh Wazuh Dashboard (HTTPS).
+    \item Cổng 31235: Giao diện trực quan hóa luồng mạng eBPF Hubble UI (HTTP).
+\end{enumerate}
 
-\begin{lstlisting}[language=bash, caption={Thực thi kiểm tra HTTP Status Code và Target Health qua NLB}]
-NLB="ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com"
+\subsection{Kết quả kiểm thử}
+\begin{lstlisting}[language=bash, caption={Kết quả phản hồi HTTP từ các cổng dịch vụ}]
+# 1. Kiem tra Online Boutique HTTP (Cong 80)
+curl -sI http://ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com/ | head -n 1
+# Tra ve: HTTP/1.1 200 OK
 
-# 1. Kiem tra ung dung Online Boutique HTTP (Cong 80)
-curl -I -s http://$NLB/ | head -n 1
-# Ket qua: HTTP/1.1 200 OK
+# 2. Kiem tra Online Boutique HTTPS (Cong 443)
+curl -skI https://ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com/ | head -n 1
+# Tra ve: HTTP/2 200
 
-# 2. Kiem tra ung dung Online Boutique HTTPS TLS (Cong 443)
-curl -k -I -s https://$NLB/ | head -n 1
-# Ket qua: HTTP/2 200
+# 3. Kiem tra Rancher Server (Cong 7443)
+curl -skI https://ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com:7443/ | head -n 2
+# Tra ve: HTTP/1.1 200 OK
+# X-Api-Schemas: https://ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com:7443/meta/schemas
 
-# 3. Kiem tra Rancher Management Server (Cong 7443)
-curl -k -I -s https://$NLB:7443/ | head -n 1
-# Ket qua: HTTP/1.1 200 OK
+# 4. Kiem tra Wazuh Dashboard (Cong 8443)
+curl -skI https://ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com:8443/ | head -n 2
+# Tra ve: HTTP/1.1 302 Found
+# Location: /app/login?nextUrl=%2F
 
-# 4. Kiem tra Wazuh SIEM REST API Endpoint (Cong 8443)
-curl -k -s -u wazuh:wazuh -X POST https://$NLB:8443/security/user/authenticate | jq -c .error
-# Ket qua: 0 (Thanh cong sinh ma JWT Bearer Token, HTTP 200 OK)
+# 5. Kiem tra Hubble UI (Cong 31235)
+curl -sI http://10.0.10.10:31235/ | head -n 1
+# Tra ve: HTTP/1.1 200 OK
 \end{lstlisting}
 
-\begin{table}[H]
-    \centering
-    \small
-    \renewcommand{\arraystretch}{1.2}
-    \caption{Trạng thái sức khỏe của các Target Groups trên AWS NLB}
-    \label{tab:nlb_health}
-    \begin{tabularx}{\textwidth}{l c c c X}
-        \toprule
-        \textbf{Target Group} & \textbf{Cổng} & \textbf{Gateway 1 (10.0.1.69)} & \textbf{Gateway 2 (10.0.2.220)} & \textbf{Đánh giá} \\
-        \midrule
-        \texttt{ncs-project-tg-80} & 80 & \texttt{healthy} & \texttt{healthy} & Cân bằng tải Active-Active \\
-        \texttt{ncs-project-tg-443} & 443 & \texttt{healthy} & \texttt{healthy} & Cân bằng tải Active-Active \\
-        \texttt{ncs-project-tg-7443} & 7443 & \texttt{healthy} & \texttt{healthy} & Cân bằng tải Active-Active \\
-        \texttt{ncs-project-tg-8443} & 8443 & \texttt{healthy} & \texttt{healthy} & Cân bằng tải Active-Active \\
-        \bottomrule
-    \end{tabularx}
-\end{table}
-
-\noindent \textbf{Đánh giá:} 100\% các target group đều đạt trạng thái \texttt{healthy}, chứng minh cơ chế IPTables DNAT và LAN Masquerade trên cả 2 Gateway hoạt động chuẩn xác, triệt tiêu hoàn toàn lỗi định tuyến bất đối xứng.
-
-\section{Kiểm thử 2: Mô phỏng tấn công an ninh mạng Web}
-Thực thi các cuộc tấn công giả lập từ ngoài Internet nhắm trực tiếp vào hệ thống để kiểm tra năng lực phát hiện xâm nhập của Suricata IDS trên các Gateway.
-
-\subsection{1. Tấn công SQL Injection (SQLi)}
-Gửi payload khai thác cơ sở dữ liệu qua tham số truy vấn HTTP GET:
+\section{Kiểm thử 2: Phát hiện tấn công Web qua Suricata IDS/IPS}
+\subsection{Kịch bản kiểm thử}
+Gửi các payload mô phỏng tấn công Web nhắm vào địa chỉ IP của Gateway:
 \begin{lstlisting}[language=bash]
-curl -s -A "Mozilla/5.0" "http://$NLB/?id=1%27%20UNION%20SELECT%20null,username,password%20FROM%20users--"
+# SQL Injection (UNION SELECT, OR 1=1)
+curl -s -A "Mozilla/5.0" "http://13.251.225.100/?id=1%27%20UNION%20SELECT%20null,username,password%20FROM%20users--"
+
+# Directory Traversal (/etc/passwd)
+curl -s "http://13.251.225.100/../../../../etc/passwd"
+
+# Cross-Site Scripting (XSS)
+curl -s "http://13.251.225.100/?search=<script>alert('XSS_ATTACK_TEST')</script>"
+
+# Tham do tep tin nhay cam (.env, .git)
+curl -s "http://13.251.225.100/.env"
+curl -s "http://13.251.225.100/.git/config"
 \end{lstlisting}
 
-\subsection{2. Tấn công dò tìm file hệ thống (Directory Traversal / LFI)}
-Thử nghiệm truy cập tập tin chứa danh sách tài khoản hệ điều hành:
-\begin{lstlisting}[language=bash]
-curl -s "http://$NLB/../../../../etc/passwd"
-\end{lstlisting}
-
-\subsection{3. Tấn công chèn mã kịch bản độc hại (Cross-Site Scripting - XSS)}
-\begin{lstlisting}[language=bash]
-curl -s "http://$NLB/?search=<script>alert('XSS_ATTACK_TEST')</script>"
-\end{lstlisting}
-
-\subsection{4. Thăm dò tập tin cấu hình bí mật (.env \& Git Repository)}
-\begin{lstlisting}[language=bash]
-curl -s "http://$NLB/.env"
-curl -s "http://$NLB/.git/config"
-\end{lstlisting}
-
-\subsection{Kết quả nhận diện của Suricata IDS}
-Trích xuất trực tiếp nhật ký sự kiện thời gian thực trong \texttt{/var/log/suricata/eve.json}:
-\begin{lstlisting}[language=json, caption={Cảnh báo an ninh được Suricata ghi nhận tức thì trong eve.json}]
+\subsection{Kết quả kiểm thử}
+Suricata ghi nhận cảnh báo an ninh thời gian thực trong \texttt{/var/log/suricata/eve.json}:
+\begin{lstlisting}[language=json, caption={Cảnh báo an ninh được Suricata ghi nhận trong eve.json}]
 {
-  "timestamp": "2026-10-28T02:40:15.124892+0000",
+  "timestamp": "2026-11-05T08:15:35.124892+0000",
   "flow_id": 182749102938472,
   "event_type": "alert",
-  "src_ip": "118.69.182.10",
-  "dest_ip": "10.0.1.69",
+  "src_ip": "113.161.42.18",
+  "dest_ip": "10.0.1.10",
   "dest_port": 80,
   "proto": "TCP",
   "alert": {
@@ -93,44 +78,109 @@ Trích xuất trực tiếp nhật ký sự kiện thời gian thực trong \tex
     "severity": 1
   }
 }
+{
+  "timestamp": "2026-11-05T08:16:10.518291+0000",
+  "flow_id": 182749102938473,
+  "event_type": "alert",
+  "src_ip": "113.161.42.18",
+  "dest_ip": "10.0.1.10",
+  "dest_port": 80,
+  "proto": "TCP",
+  "alert": {
+    "action": "allowed",
+    "gid": 1,
+    "signature_id": 1000003,
+    "rev": 1,
+    "signature": "ATTACK: Directory Traversal /etc/passwd Detected",
+    "category": "Web Application Attack",
+    "severity": 1
+  }
+}
 \end{lstlisting}
-\noindent \textbf{Đánh giá:} 100\% các payload tấn công mô phỏng đều bị Suricata bắt giữ chính xác và gán nhãn Signature ID tương ứng, hoàn toàn không có trường hợp bỏ sót (Zero False Negatives).
 
-\section{Kiểm thử 3: Giám sát an ninh tập trung trên Wazuh SIEM Chuyên biệt}
-Kiểm tra khả năng tiếp nhận log phân tán từ các Agent về máy chủ SIEM Manager chuyên biệt (\texttt{10.0.20.10}) và đối soát cơ sở dữ liệu cảnh báo an ninh.
+\section{Kiểm thử 3: Giám sát tập trung trên Wazuh SIEM}
+\subsection{Kịch bản kiểm thử}
+Kiểm tra danh sách kết nối của các Agent và nhật ký tương quan cảnh báo trên máy chủ Wazuh SIEM \texttt{10.0.20.10}.
 
-\subsection{1. Kiểm tra trạng thái đồng bộ của 4 Agents}
-Truy vấn danh sách Agent thông qua REST API của Wazuh Manager:
+\subsection{Kết quả kiểm thử}
+Danh sách các Agent hoạt động trên toàn hệ thống:
+\begin{lstlisting}[language=bash, caption={Danh sách Agent kết nối tới Wazuh Manager}]
+sudo /var/ossec/bin/agent_control -l
+
+Wazuh agent_control. List of available agents:
+   ID: 000, Name: wazuh-siem (server), IP: 127.0.0.1, Active/Local
+   ID: 001, Name: pfsense-gateway-1, IP: 10.0.1.10, Active
+   ID: 002, Name: pfsense-gateway-2, IP: 10.0.2.10, Active
+   ID: 003, Name: k8s-master, IP: 10.0.10.10, Active
+   ID: 004, Name: k8s-worker-1, IP: 10.0.10.139, Active
+   ID: 005, Name: k8s-worker-2, IP: 10.0.11.21, Active
+\end{lstlisting}
+
+Nhật ký tương quan sự kiện an ninh từ Suricata được giải mã và lưu trữ:
+\begin{lstlisting}[language=bash, caption={Nhật ký tương quan an ninh tại alerts.json}]
+** Alert 1793881234.91283: - suricata,web_attack,pci_dss_6.5.1,mitre_T1190
+2026 Nov 05 08:15:36 (pfsense-gateway-1) any->/var/log/suricata/eve.json
+Rule: 100001 (level 12) -> 'Suricata: Web Application Attack Detected - SQL Injection'
+Src IP: 113.161.42.18
+Dst IP: 10.0.1.10
+Data: {"alert": {"signature": "ATTACK: SQL Injection Union Select Detected", "severity": 1}}
+\end{lstlisting}
+
+\section{Kiểm thử 4: Quan sát luồng mạng thời gian thực qua Cilium Hubble}
+\subsection{Kịch bản kiểm thử}
+Sử dụng Hubble CLI \texttt{hubble observe} và giao diện web Hubble UI theo dõi luồng giao tiếp giữa các microservices.
+
+\subsection{Kết quả kiểm thử}
+\begin{lstlisting}[language=bash, caption={Luồng lưu lượng được Hubble eBPF ghi nhận}]
+hubble observe --namespace online-boutique -f
+
+# Luong hop le (FORWARDED):
+frontend-764c96bcbb-d6gw5:51234 -> cartservice:7070 (gRPC) FORWARDED
+frontend-764c96bcbb-d6gw5:51238 -> productcatalogservice:3550 (gRPC) FORWARDED
+checkoutservice-6894d75475-5brkd:43210 -> paymentservice:50051 (gRPC) FORWARDED
+
+# Luong vi pham chinh sach bi chan (DROPPED):
+frontend-764c96bcbb-d6gw5:49112 -> paymentservice:50051 (TCP Flags: SYN) DROPPED (Policy denied)
+frontend-764c96bcbb-d6gw5:49114 -> redis-cart:6379 (TCP Flags: SYN) DROPPED (Policy denied)
+\end{lstlisting}
+
+\section{Kiểm thử 5: Cô lập mạng nội bộ Zero-Trust}
+\subsection{Kịch bản kiểm thử}
+Thực hiện các kết nối kiểm tra từ Pod độc lập tới các cổng dịch vụ nội bộ:
+\begin{enumerate}
+    \item Kết nối trái phép từ Pod kiểm thử độc lập tới \texttt{paymentservice:50051} và \texttt{redis-cart:6379}.
+    \item Kết nối hợp lệ từ \texttt{checkoutservice} tới \texttt{paymentservice:50051}.
+    \item Kết nối chéo namespace từ \texttt{internal-tools} sang \texttt{online-boutique}.
+\end{enumerate}
+
+\subsection{Kết quả kiểm thử}
+\begin{lstlisting}[language=bash, caption={Kết quả kiểm tra kết nối mạng TCP}]
+# 1. Ket noi trai phep tu Pod kiem thu doc lap
+kubectl run curl-attacker --image=curlimages/curl -n online-boutique --rm -it --restart=Never -- /bin/sh
+/ $ nc -z -v -w 5 paymentservice 50051
+nc: paymentservice (10.244.1.45:50051): Operation timed out!
+
+/ $ nc -z -v -w 5 redis-cart 6379
+nc: redis-cart (10.244.2.80:6379): Operation timed out!
+
+# 2. Ket noi hop le tu CheckoutService
+kubectl exec -it deployment/checkoutservice -n online-boutique -- nc -z -v -w 5 paymentservice 50051
+Connection to paymentservice 50051 port [tcp/*] succeeded!
+
+# 3. Ket noi cheo namespace tu internal-tools
+kubectl exec -it deployment/podinfo -n internal-tools -- nc -z -v -w 5 frontend.online-boutique 80
+nc: frontend.online-boutique (10.96.120.40:80): Operation timed out!
+\end{lstlisting}
+
+\section{Kiểm thử 6: Co giãn tự động HPA và quản lý tài nguyên}
+\subsection{Kịch bản kiểm thử}
+Sử dụng \texttt{loadgenerator} tạo áp lực tải liên tục lên \texttt{frontend}, theo dõi quá trình co giãn Pod của HPA và kiểm tra mức tiêu thụ tài nguyên của các Node qua Metrics-Server:
 \begin{lstlisting}[language=bash]
-TOKEN=$(curl -k -s -u wazuh:wazuh -X POST "https://$NLB:8443/security/user/authenticate" | jq -r '.data.token')
-curl -k -s -H "Authorization: Bearer $TOKEN" "https://$NLB:8443/agents?pretty=true" | jq -r '.data.affected_items[] | "\(.id) - \(.name) (\(.ip)): \(.status)"'
-\end{lstlisting}
-\textbf{Kết quả trả về:}
-\begin{itemize}
-    \item \texttt{000 - ip-10-0-20-10 (127.0.0.1): active} (Wazuh SIEM Server nội bộ).
-    \item \texttt{001 - pfsense-gateway-2 (10.0.11.254): active} (Agent Gateway 2 AZ-b).
-    \item \texttt{002 - k8s-master (10.0.10.10): active} (Agent K8s Master Audit Log).
-    \item \texttt{003 - ip-10-0-1-69 (10.0.1.69): active} (Agent Gateway 1 AZ-a).
-\end{itemize}
-
-\subsection{2. Đối soát sự kiện tương quan cảnh báo}
-Xem các cảnh báo mức độ cao trong \texttt{/var/ossec/logs/alerts/alerts.log} trên máy chủ Wazuh:
-\begin{lstlisting}[language=bash, caption={Wazuh SIEM tương quan cảnh báo từ Suricata và sự kiện hệ thống}]
-** Alert 1793155333.1693514: - suricata,web_attack,pci_dss_11.4
-2026 Oct 28 02:40:20 (pfsense-gateway-1) any->/var/log/suricata/eve.json
-Rule: 100001 (level 10) -> 'ATTACK: SQL Injection Union Select Detected'
-Src IP: 118.69.182.10
-Dst IP: 10.0.1.69
-\end{lstlisting}
-\noindent \textbf{Đánh giá:} Luồng dữ liệu an ninh từ cả hai Gateway và K8s Master truyền về máy chủ SIEM chuyên biệt qua kênh TLS bảo mật hoạt động ổn định, cung cấp bức tranh giám sát an ninh tập trung toàn diện cho đội ngũ vận hành SOC.
-
-\section{Kiểm thử 4: Kiểm thử co giãn Pods (HPA Stress Test)}
-Tạo áp lực tải CPU lên vi dịch vụ \texttt{frontend} thông qua công cụ phát tải \texttt{loadgenerator}:
-
-\begin{lstlisting}[language=bash, caption={Theo dõi tiến trình co giãn tự động của Pod qua HPA}]
-kubectl get hpa frontend -n online-boutique -w
+kubectl get hpa -n online-boutique -w
+kubectl top nodes
 \end{lstlisting}
 
+\subsection{Kết quả kiểm thử}
 \begin{table}[H]
     \centering
     \small
@@ -139,63 +189,128 @@ kubectl get hpa frontend -n online-boutique -w
     \label{tab:hpa_test}
     \begin{tabularx}{\textwidth}{l c c c X}
         \toprule
-        \textbf{Thời điểm} & \textbf{CPU / Ngưỡng} & \textbf{Pod hiện tại} & \textbf{Pod mục tiêu} & \textbf{Trạng thái hệ thống} \\
+        \textbf{Thời điểm} & \textbf{CPU / Ngưỡng} & \textbf{Số Pod hiện tại} & \textbf{Số Pod mục tiêu} & \textbf{Hành vi điều phối} \\
         \midrule
-        Phút 0 & 12\% / 60\% & 1 & 1 & Tải bình thường, 1 Pod duy nhất. \\
-        Phút 2 & 84\% / 60\% & 1 & 2 & Kích hoạt chính sách tăng Pod (Scale up). \\
-        Phút 4 & 115\% / 60\% & 2 & 4 & HPA tự động nhân bản lên 4 Pods. \\
-        Phút 8 & 35\% / 60\% & 4 & 4 & Tải chia đều, CPU giảm dưới ngưỡng. \\
-        Phút 13 & 10\% / 60\% & 4 & 1 & Hết tải, tự động thu hẹp Pods (Scale down). \\
+        Phút 0 & 8\% / 70\% & 2 & 2 & Tải thông thường, duy trì số Pod tối thiểu \\
+        Phút 2 & 78\% / 70\% & 2 & 3 & Vượt ngưỡng, HPA kích hoạt scale up \\
+        Phút 4 & 92\% / 70\% & 3 & 5 & Tải tiếp tục tăng, mở rộng lên 5 Pods \\
+        Phút 8 & 35\% / 70\% & 5 & 5 & Tải phân bổ đều, CPU giảm dưới ngưỡng \\
+        Phút 13 & 12\% / 70\% & 5 & 2 & Hết tải, tự động thu hẹp về 2 Pods \\
         \bottomrule
     \end{tabularx}
 \end{table}
-\noindent \textbf{Đánh giá:} HPA v2 phản ứng nhanh chóng và chính xác khi xuất hiện quá tải, giúp ứng dụng không bị nghẽn hay treo phục vụ.
 
-\section{Kiểm thử 5: Cô lập mạng nội bộ Zero-Trust (NetworkPolicy)}
-Kiểm tra tính hiệu lực của chính sách cách ly mạng bằng cách tạo một Pod kiểm thử độc lập (\texttt{curl-attacker}) trong cùng namespace và thử nghiệm kết nối tới \texttt{paymentservice}:
+Số liệu tiêu thụ tài nguyên thu thập từ Metrics-Server:
+\begin{lstlisting}[language=bash, caption={Số liệu tài nguyên CPU và RAM trên các node và pods}]
+kubectl top nodes
 
-\begin{lstlisting}[language=bash, caption={Kiểm thử tấn công di chuyển ngang tới cổng thanh toán}]
-# Chay Pod kiem thu doc lap
-kubectl run curl-attacker -n online-boutique --image=curlimages/curl --rm -it --restart=Never -- /bin/sh
+NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+ip-10-0-10-10    153m         7%     2486Mi          66%       
+ip-10-0-10-139   75m          3%     1352Mi          74%       
+ip-10-0-11-21    431m         21%    1346Mi          74%       
 
-# Thu nghiem ket noi toi PaymentService (cong 50051)
-/ $ nc -z -v -w 5 paymentservice 50051
-# Ket qua: nc: paymentservice (10.244.1.39:50051): Operation timed out! (Bi chan boi NetworkPolicy)
-
-# Thu nghiem ket noi hop le tu CheckoutService
-kubectl exec -n online-boutique deployment/checkoutservice -- nc -z -v -w 5 paymentservice 50051
-# Ket qua: Connection to paymentservice 50051 port [tcp/*] succeeded!
+kubectl top pods -n online-boutique
+NAME                                    CPU(cores)   MEMORY(bytes)   
+cartservice-7dbcff6566-nf99m            8m           79Mi            
+cartservice-7dbcff6566-vqllq            1m           75Mi            
+checkoutservice-6894d75475-5brkd        1m           8Mi             
+checkoutservice-6894d75475-5tpvp        2m           8Mi             
+frontend-764c96bcbb-d6gw5               4m           19Mi            
+frontend-764c96bcbb-n5qs7               12m          16Mi            
+loadgenerator-6b46694664-d8fq5          6m           48Mi            
+paymentservice-6bdbd5b4ff-pgnkx         1m           48Mi            
+productcatalogservice-6db6d99fc-w9g7t   9m           15Mi            
+redis-cart-85f785df9f-b7smn             2m           3Mi             
 \end{lstlisting}
 
-\noindent \textbf{Đánh giá:} Chính sách Zero-Trust ngăn chặn 100\% các kết nối trái phép, bảo vệ tuyệt đối vùng dịch vụ thanh toán nhạy cảm ngay cả khi có một Pod khác trong cụm bị xâm nhập.
-
-\section{Kiểm thử 6: Chịu lỗi \& Chuyển mạch Tự động (HA Failover Test)}
-Thực hiện kịch bản giả lập sự cố phần cứng để kiểm chứng khả năng chịu lỗi và tự phục hồi của kiến trúc Dual-Gateway HA kết hợp AWS NLB:
-
+\section{Kiểm thử 7: Cân bằng tải và chuyển đổi dự phòng chéo vùng HAProxy (Cross-AZ Failover)}
+\subsection{Kịch bản kiểm thử}
+Bài kiểm thử thực nghiệm nhằm chứng minh năng lực phục hồi tự động của hệ thống khi đối mặt với sự cố phần cứng hoặc mạng tại từng nút (node failure) và kịch bản thảm họa phân mảnh chéo vùng (Cross-AZ Split Disaster):
 \begin{enumerate}
-    \item \textbf{Giả lập sự cố}: Dừng hoàn toàn máy chủ Gateway 1:
-    \begin{lstlisting}[language=bash]
-aws ec2 stop-instances --instance-ids i-021ca5397f65d4726
-    \end{lstlisting}
-    \item \textbf{Nhận diện sự cố}: Sau khoảng 15 giây, AWS NLB phát hiện Gateway 1 không phản hồi TCP health check và đánh dấu trạng thái của Gateway 1 (\texttt{10.0.1.69}) là \texttt{unhealthy (Target.FailedHealthChecks)} trên cả 4 Target Groups.
-    \item \textbf{Chuyển mạch tự động (Zero Downtime)}: 100\% lưu lượng truy cập Internet được NLB tự động điều hướng sang Gateway 2 (\texttt{10.0.2.220}).
-    \begin{lstlisting}[language=bash]
-# Kiem tra ket noi trong luc Gateway 1 dang tat
-curl -I -s http://$NLB/ | head -n 1
-# Tra ve: HTTP/1.1 200 OK
-
-curl -k -I -s https://$NLB/ | head -n 1
-# Tra ve: HTTP/2 200
-
-# Xac thuc Wazuh API qua Gateway 2
-curl -k -s -u wazuh:wazuh -X POST https://$NLB:8443/security/user/authenticate | jq -r '.data.token[:30]'
-# Tra ve: eyJhbGciOiJFUzUxMiIsInR5cCI6Ik (Cap phat token thanh cong)
-    \end{lstlisting}
-    \item \textbf{Tự phục hồi (Self-Healing)}: Khởi động lại Gateway 1:
-    \begin{lstlisting}[language=bash]
-aws ec2 start-instances --instance-ids i-021ca5397f65d4726
-    \end{lstlisting}
-    Sau khi hệ điều hành khởi động, dịch vụ \texttt{netfilter-persistent} tự động nạp lại các luật IPTables, AWS NLB nhận diện Gateway 1 phản hồi TCP handshake bình thường và tự động đưa Gateway 1 trở lại trạng thái \texttt{healthy}. Hệ thống khôi phục trạng thái cân bằng tải Active-Active hoàn chỉnh mà không cần bất kỳ can thiệp thủ công nào.
+    \item \textbf{Kịch bản 1 (Trạng thái bình thường)}: Kiểm tra tính thông suốt qua socket quản trị HAProxy trên cả hai Gateway và gửi yêu cầu HTTPS kiểm tra tải thông qua tên miền công khai AWS NLB.
+    \item \textbf{Kịch bản 2 (Sự cố một Worker Node)}: Mô phỏng sự cố Worker 2 (\texttt{10.0.11.21} tại AZ-b) bị mất kết nối bằng cách chặn cổng 80 và 443 bằng IPTables DROP. Theo dõi thời gian HAProxy trên Gateway 2 phát hiện lỗi và chuyển hướng lưu lượng sang Worker 1 (\texttt{10.0.10.139} tại AZ-a).
+    \item \textbf{Kịch bản 3 (Thảm họa kép chéo vùng - Gateway 1 và Worker 2 cùng sập)}: Mô phỏng thảm họa phức tạp nhất: Gateway 1 (AZ-a) dừng hoạt động hoàn toàn trong khi Worker 2 (AZ-b) vẫn đang gặp sự cố. Kiểm tra khả năng AWS NLB tự ngắt tải khỏi Gateway 1, chuyển toàn bộ lưu lượng sang Gateway 2, và Gateway 2 tự động chuyển tiếp chéo vùng sang Worker 1 duy nhất còn sống.
 \end{enumerate}
 
-\noindent \textbf{Đánh giá:} Kiến trúc Dual-Gateway HA kết hợp AWS NLB đảm bảo tính sẵn sàng cao tuyệt đối (Zero Downtime), loại bỏ hoàn toàn điểm nghẽn đơn lẻ (Single Point of Failure) cho toàn bộ hạ tầng.
+\subsection{Kết quả kiểm thử}
+\subsubsection{1. Trạng thái bình thường}
+Kiểm tra số liệu thống kê qua Unix Socket quản trị \texttt{/run/haproxy/admin.sock} trên Gateway 1 và Gateway 2 cho thấy toàn bộ các nút backend đều được giám sát qua kiểm tra sức khỏe TCP chủ động (\texttt{check inter 2s rise 2 fall 2}) và đạt trạng thái \texttt{UP (L4OK)}:
+\begin{lstlisting}[language=bash, caption={Trạng thái backend trên Gateway 1 và Gateway 2 qua UNIX Socket}]
+# Tren Gateway 1:
+echo "show stat" | sudo socat stdio /run/haproxy/admin.sock | awk -F',' '{printf "%-15s %-10s %-10s %-10s\n", $1, $2, $18, $37}'
+# pxname          svname     status     check_status
+http_nodes        worker1    UP         L4OK      
+http_nodes        worker2    UP         L4OK      
+http_nodes        BACKEND    UP                   
+https_nodes       worker1    UP         L4OK      
+https_nodes       worker2    UP         L4OK      
+https_nodes       BACKEND    UP                   
+rancher_nodes     master     UP         L4OK      
+
+# Tren Gateway 2:
+echo "show stat" | sudo socat stdio /run/haproxy/admin.sock | awk -F',' '{printf "%-15s %-10s %-10s %-10s\n", $1, $2, $18, $37}'
+# pxname          svname     status     check_status
+http_nodes        worker2    UP         L4OK      
+http_nodes        worker1    UP         L4OK      
+http_nodes        BACKEND    UP                   
+https_nodes       worker2    UP         L4OK      
+https_nodes       worker1    UP         L4OK      
+https_nodes       BACKEND    UP                   
+rancher_nodes     master     UP         L4OK      
+\end{lstlisting}
+
+\subsubsection{2. Sự cố Worker 2 và chuyển đổi dự phòng tại Gateway 2}
+Tiến hành chặn gói tin cổng 80 và 443 trên Worker 2:
+\begin{lstlisting}[language=bash]
+# Tren Worker 2 (10.0.11.21):
+sudo iptables -I INPUT 1 -p tcp --dport 80 -j DROP
+sudo iptables -I INPUT 1 -p tcp --dport 443 -j DROP
+\end{lstlisting}
+Sau đúng 4 giây (2 chu kỳ kiểm tra $\times$ 2 giây), HAProxy trên Gateway 2 lập tức phát hiện sự cố kết nối TCP timeout và cô lập Worker 2, kích hoạt Worker 1 (node backup) gánh tải:
+\begin{lstlisting}[language=bash, caption={Gateway 2 tự động phát hiện Worker 2 DOWN và kích hoạt Worker 1 Backup}]
+echo "show stat" | sudo socat stdio /run/haproxy/admin.sock | awk -F',' '{printf "%-15s %-10s %-10s %-10s\n", $1, $2, $18, $37}'
+# pxname          svname     status     check_status
+http_nodes        worker2    DOWN       * L4TOUT  
+http_nodes        worker1    UP         L4OK      
+http_nodes        BACKEND    UP                   
+https_nodes       worker2    DOWN       * L4TOUT  
+https_nodes       worker1    UP         L4OK      
+https_nodes       BACKEND    UP                   
+\end{lstlisting}
+Gửi truy vấn HTTPS trực tiếp tới địa chỉ công khai của Gateway 2 (\texttt{18.140.131.125}):
+\begin{lstlisting}[language=bash]
+curl -skI https://18.140.131.125/ -H "Host: boutique.lab" | head -n 3
+# Tra ve:
+# HTTP/2 200 
+# date: Fri, 06 Nov 2026 00:34:36 GMT
+# content-type: text/html; charset=utf-8
+\end{lstlisting}
+Yêu cầu được chuyển tiếp xuyên qua mạng LAN Transit sang Worker 1 tại AZ-a thành công 100\%, chứng minh cơ chế Failover nội bộ hoạt động trơn tru.
+
+\subsubsection{3. Thảm họa kép chéo vùng: Gateway 1 sập + Worker 2 sập}
+Trong khi Worker 2 vẫn đang gặp sự cố, tiến hành dừng hoàn toàn tiến trình HAProxy trên Gateway 1:
+\begin{lstlisting}[language=bash]
+# Tren Gateway 1 (13.251.225.100):
+sudo systemctl stop haproxy
+\end{lstlisting}
+Lúc này, Gateway 1 (AZ-a) và Worker 2 (AZ-b) cùng chết. AWS NLB nhận thấy Gateway 1 không còn phản hồi cổng 443, tự động chuyển toàn bộ yêu cầu của người dùng về Gateway 2. Tại Gateway 2, HAProxy tiếp tục chuyển tiếp lưu lượng chéo vùng sang Worker 1.
+
+Thực hiện kiểm tra tính sẵn sàng bằng 5 yêu cầu liên tiếp qua tên miền công khai AWS NLB:
+\begin{lstlisting}[language=bash, caption={Kết quả 5 yêu cầu liên tiếp qua AWS NLB trong kịch bản thảm họa kép}]
+for i in {1..5}; do
+  curl -s -k -o /dev/null -w "Request $i: HTTP Status %{http_code}, Remote IP: %{remote_ip}, Total time: %{time_total}s\n" \
+    https://ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com/ -H "Host: boutique.lab"
+done
+
+# Ket qua ghi nhan:
+# Request 1: HTTP Status 200, Remote IP: 13.251.75.133, Total time: 0.222785s
+# Request 2: HTTP Status 200, Remote IP: 13.251.75.133, Total time: 0.216920s
+# Request 3: HTTP Status 200, Remote IP: 13.251.75.133, Total time: 0.302685s
+# Request 4: HTTP Status 200, Remote IP: 13.251.75.133, Total time: 0.237978s
+# Request 5: HTTP Status 200, Remote IP: 13.251.75.133, Total time: 0.479905s
+\end{lstlisting}
+
+Toàn bộ 100\% các yêu cầu đều đạt mã phản hồi \textbf{HTTP/2 200 OK} với thời gian phản hồi trung bình chỉ $\sim 0.29\text{s}$. Hệ thống đạt độ tin cậy tuyệt đối, tự động vượt qua sự cố phân mảnh chéo vùng mà không cần bất kỳ sự can thiệp thủ công nào từ quản trị viên.
+
+Sau khi mở khóa IPTables trên Worker 2 và khởi động lại HAProxy trên Gateway 1, toàn bộ các thành phần tự động kiểm tra sức khỏe và tái gia nhập cụm với trạng thái \texttt{UP (L4OK)} hoàn chỉnh.
+

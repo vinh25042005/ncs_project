@@ -1,13 +1,12 @@
 ---
-# Role: worker 
-
+# Role: worker — Tham gia Worker node vào cụm Kubernetes
 - name: Kiểm tra xem Worker node đã tham gia cụm chưa
-  stat:
+  ansible.builtin.stat:
     path: /etc/kubernetes/kubelet.conf
   register: kubelet_conf
 
 - name: Lấy lệnh join token từ Master
-  command: kubeadm token create --print-join-command
+  ansible.builtin.command: kubeadm token create --print-join-command
   delegate_to: "{{ groups['master'][0] }}"
   register: fallback_join_cmd
   when:
@@ -17,19 +16,21 @@
   changed_when: false
 
 - name: Thực thi lệnh join vào cụm Kubernetes
-  shell: "{{ hostvars[groups['master'][0]]['k8s_join_command'] | default(fallback_join_cmd.stdout, true) }}"
+  ansible.builtin.shell: "{{ hostvars[groups['master'][0]]['k8s_join_command'] | default(fallback_join_cmd.stdout, true) }} --cri-socket unix:///var/run/containerd/containerd.sock"
   when: not kubelet_conf.stat.exists
 
 - name: Đảm bảo kubelet được kích hoạt và khởi chạy
-  systemd:
+  ansible.builtin.systemd:
     name: kubelet
     state: started
-    enabled: yes
+    enabled: true
 
 - name: Đợi Master xác nhận Worker node chuyển sang trạng thái Ready
-  shell: |
-    KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes -o wide | grep "{{ ansible_host }}" | grep -w "Ready"
+  ansible.builtin.shell: |
+    kubectl get nodes -o wide | grep "{{ ansible_host }}" | grep -w "Ready"
   delegate_to: "{{ groups['master'][0] }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig | default('/etc/kubernetes/admin.conf') }}"
   register: worker_ready
   until: worker_ready.rc == 0
   retries: 30

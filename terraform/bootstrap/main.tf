@@ -78,7 +78,7 @@ resource "aws_s3_bucket_public_access_block" "tfstate_block_public" {
 # 2. DynamoDB Table để State Locking
 resource "aws_dynamodb_table" "tflocks" {
   name         = "${var.project_name}-tflocks"
-  billing_mode = "PAY_PER_REQUEST" 
+  billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 
   attribute {

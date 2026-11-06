@@ -127,13 +127,13 @@ resource "aws_instance" "pfsense" {
               iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
               iptables -A FORWARD -i "$LAN_DEV" -o "$WAN_DEV" -j ACCEPT
 
-              # 2. Port Forwarding HTTP (80), HTTPS (443), Rancher (7443) & Wazuh API (8443 -> 55000)
-              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 80 -j DNAT --to-destination 10.0.10.10:80
-              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 443 -j DNAT --to-destination 10.0.10.10:443
+              # 2. Port Forwarding HTTP (80), HTTPS (443) tới Worker Ingress & Rancher (7443), Wazuh (8443)
+              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 80 -j DNAT --to-destination 10.0.10.139:80
+              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 443 -j DNAT --to-destination 10.0.10.139:443
               iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 7443 -j DNAT --to-destination 10.0.10.10:30443
               iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 8443 -j DNAT --to-destination 10.0.20.10:55000
-              iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 80 -j ACCEPT
-              iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 443 -j ACCEPT
+              iptables -A FORWARD -p tcp -d 10.0.10.139 --dport 80 -j ACCEPT
+              iptables -A FORWARD -p tcp -d 10.0.10.139 --dport 443 -j ACCEPT
               iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 30443 -j ACCEPT
               iptables -A FORWARD -p tcp -d 10.0.20.10 --dport 55000 -j ACCEPT
 
@@ -276,13 +276,13 @@ resource "aws_instance" "pfsense_2" {
               iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
               iptables -A FORWARD -i "$LAN_DEV" -o "$WAN_DEV" -j ACCEPT
 
-              # 2. Port Forwarding HTTP (80), HTTPS (443), Rancher (7443) & Wazuh API (8443 -> 55000)
-              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 80 -j DNAT --to-destination 10.0.10.10:80
-              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 443 -j DNAT --to-destination 10.0.10.10:443
+              # 2. Port Forwarding HTTP (80), HTTPS (443) tới Worker 2 Ingress & Rancher (7443), Wazuh (8443)
+              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 80 -j DNAT --to-destination 10.0.11.21:80
+              iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 443 -j DNAT --to-destination 10.0.11.21:443
               iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 7443 -j DNAT --to-destination 10.0.10.10:30443
               iptables -t nat -A PREROUTING -i "$WAN_DEV" -p tcp --dport 8443 -j DNAT --to-destination 10.0.20.10:55000
-              iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 80 -j ACCEPT
-              iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 443 -j ACCEPT
+              iptables -A FORWARD -p tcp -d 10.0.11.21 --dport 80 -j ACCEPT
+              iptables -A FORWARD -p tcp -d 10.0.11.21 --dport 443 -j ACCEPT
               iptables -A FORWARD -p tcp -d 10.0.10.10 --dport 30443 -j ACCEPT
               iptables -A FORWARD -p tcp -d 10.0.20.10 --dport 55000 -j ACCEPT
 

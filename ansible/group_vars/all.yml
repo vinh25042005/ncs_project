@@ -4,8 +4,15 @@
 k8s_version: "1.31"
 pod_network_cidr: "10.244.0.0/16"
 master_ip: "10.0.10.10"
-flannel_manifest_url: "https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml"
+kubeconfig: "/etc/kubernetes/admin.conf"
+cilium_version: "1.16.2"
+cilium_cli_version: "v0.16.20"
+hubble_ui_nodeport: 31235
+gateway_suricata_ips: true
 ingress_nginx_manifest_url: "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/baremetal/deploy.yaml"
+worker_1_ip: "10.0.10.139"
+worker_2_ip: "10.0.11.21"
+ingress_node_ip: "{{ worker_1_ip if inventory_hostname == 'pfsense-gateway-1' else worker_2_ip }}"
 
 # Wazuh SIEM Server độc lập trong Management Subnet
 wazuh_server_ip: "10.0.20.10"

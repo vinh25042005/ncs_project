@@ -12,20 +12,59 @@
   changed_when: false
   ignore_errors: true
 
+- name: Kiểm tra xem Wazuh đã được cài đặt trước đó chưa
+  ansible.builtin.stat:
+    path: /var/ossec/bin/wazuh-control
+  register: wazuh_installed
+
 - name: Dừng và giải phóng toàn bộ tiến trình Wazuh cũ 
   ansible.builtin.shell: |
     systemctl stop wazuh-manager wazuh-indexer filebeat wazuh-dashboard 2>/dev/null || true
     fuser -k 1515/tcp 55000/tcp 2>/dev/null || true
   changed_when: false
+  when: not wazuh_installed.stat.exists
 
 - name: Tải script cài đặt Wazuh All-in-One
   ansible.builtin.get_url:
     url: https://packages.wazuh.com/4.14/wazuh-install.sh
     dest: /root/wazuh-install.sh
     mode: '0755'
+  when: not wazuh_installed.stat.exists
 
 - name: Cài đặt Wazuh All-in-One (Indexer + Server + Dashboard)
   ansible.builtin.shell: |
     rm -f /root/wazuh-install-files.tar
     bash /root/wazuh-install.sh -a -o
+  args:
+    creates: /var/ossec/bin/wazuh-control
   changed_when: true
+  when: not wazuh_installed.stat.exists
+
+- name: Cấu hình tham số mở rộng bộ đệm JSON decoder (local_internal_options.conf)
+  ansible.builtin.copy:
+    src: local_internal_options.conf
+    dest: /var/ossec/etc/local_internal_options.conf
+    owner: root
+    group: wazuh
+    mode: '0640'
+  notify: restart wazuh-manager
+
+- name: Cài đặt bộ luật giám sát cho Suricata DPI & K8s Audit (local_rules.xml)
+  ansible.builtin.copy:
+    src: local_rules.xml
+    dest: /var/ossec/etc/rules/local_rules.xml
+    owner: root
+    group: wazuh
+    mode: '0640'
+  notify: restart wazuh-manager
+
+- name: Đảm bảo toàn bộ dịch vụ Wazuh chạy
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - wazuh-indexer
+    - filebeat
+    - wazuh-manager
+    - wazuh-dashboard

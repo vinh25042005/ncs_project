@@ -1,0 +1,61 @@
+---
+# Role: cilium — Cài đặt Cilium CNI (eBPF Kernel Mode) và Hubble UI Observability
+
+- name: Kiểm tra Cilium CLI đã được cài đặt chưa
+  ansible.builtin.stat:
+    path: /usr/local/bin/cilium
+  register: cilium_cli_bin
+
+- name: Tải và cài đặt Cilium CLI binary
+  ansible.builtin.shell: |
+    CLI_VER={{ cilium_cli_version }}
+    curl -L --fail --remote-name-all "https://github.com/cilium/cilium-cli/releases/download/${CLI_VER}/cilium-linux-amd64.tar.gz"
+    tar xzvfC cilium-linux-amd64.tar.gz /usr/local/bin
+    rm -f cilium-linux-amd64.tar.gz
+    chmod +x /usr/local/bin/cilium
+  when: not cilium_cli_bin.stat.exists
+
+- name: Kiểm tra Cilium DaemonSet đã tồn tại trong cụm chưa
+  ansible.builtin.shell: kubectl get ds cilium -n kube-system
+  register: cilium_ds_check
+  failed_when: false
+  changed_when: false
+
+- name: Khởi tạo Cilium CNI v{{ cilium_version }} kèm Hubble Relay & Hubble UI
+  ansible.builtin.shell: |
+    /usr/local/bin/cilium install \
+      --version {{ cilium_version }} \
+      --set ipam.mode=kubernetes \
+      --set routingMode=tunnel \
+      --set tunnelProtocol=vxlan \
+      --set hubble.relay.enabled=true \
+      --set hubble.ui.enabled=true \
+      --wait=false
+  when: cilium_ds_check.rc != 0
+
+- name: Chờ Cilium DaemonSet và Operator khởi động và sẵn sàng (Ready)
+  ansible.builtin.shell: |
+    kubectl rollout status daemonset/cilium -n kube-system --timeout=300s
+    kubectl rollout status deployment/cilium-operator -n kube-system --timeout=300s
+  changed_when: false
+
+- name: Chờ Hubble Relay và Hubble UI sẵn sàng
+  ansible.builtin.shell: |
+    kubectl rollout status deployment/hubble-relay -n kube-system --timeout=180s
+    kubectl rollout status deployment/hubble-ui -n kube-system --timeout=180s
+  changed_when: false
+
+- name: Cấu hình Service Hubble UI sang NodePort (Port {{ hubble_ui_nodeport }})
+  ansible.builtin.shell: |
+    kubectl patch service hubble-ui -n kube-system \
+      -p '{"spec": {"type": "NodePort", "ports": [{"name": "http", "port": 80, "targetPort": 8081, "nodePort": {{ hubble_ui_nodeport }}}]}}'
+  changed_when: false
+
+- name: Đợi Control-Plane Master Node chuyển sang trạng thái Ready
+  ansible.builtin.shell: |
+    kubectl get nodes | grep -w 'Ready'
+  register: node_ready
+  until: node_ready.rc == 0
+  retries: 25
+  delay: 5
+  changed_when: false

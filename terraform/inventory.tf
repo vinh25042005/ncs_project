@@ -62,7 +62,7 @@ workers
 
 [all:vars]
 ansible_user=ubuntu
-ansible_ssh_private_key_file=~/.ssh/${var.key_name}.pem
+ansible_ssh_private_key_file=~/.ssh/ncs-key.pem
 ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new'
 EOF
 }

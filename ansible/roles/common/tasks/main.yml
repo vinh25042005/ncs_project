@@ -2,7 +2,7 @@
 # Role: common — Cấu hình OS, containerd và cài đặt kubeadm/kubelet/kubectl
 # Áp dụng cho toàn bộ các node trong cụm 
 - name: Đợi và giải phóng tiến trình unattended-upgrades nếu có
-  shell: |
+  ansible.builtin.shell: |
     systemctl stop unattended-upgrades 2>/dev/null || true
     while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
       echo "Đang đợi tiến trình APT khác hoàn tất..."
@@ -13,38 +13,39 @@
   ignore_errors: true
 
 - name: Nạp kernel modules cho Kubernetes và containerd
-  copy:
+  ansible.builtin.copy:
     src: k8s-modules.conf
     dest: /etc/modules-load.d/k8s.conf
     mode: '0644'
 
 - name: Kích hoạt kernel modules
-  modprobe:
+  community.general.modprobe:
     name: "{{ item }}"
     state: present
   loop:
     - overlay
     - br_netfilter
+  ignore_errors: true
 
 - name: Cấu hình sysctl cho mạng Kubernetes
-  copy:
+  ansible.builtin.copy:
     src: 99-kubernetes.conf
     dest: /etc/sysctl.d/99-kubernetes.conf
     mode: '0644'
 
 - name: Áp dụng sysctl
-  command: sysctl --system
+  ansible.builtin.command: sysctl --system
   changed_when: false
 
 - name: Tắt Swap hoàn toàn theo chuẩn Kubernetes
-  shell: |
+  ansible.builtin.shell: |
     swapoff -a
     sed -i '/swap/d' /etc/fstab
     rm -f /swapfile
   changed_when: false
 
 - name: Cài đặt các gói phụ trợ cơ bản
-  apt:
+  ansible.builtin.apt:
     name:
       - apt-transport-https
       - ca-certificates
@@ -55,15 +56,15 @@
       - conntrack
       - socat
     state: present
-    update_cache: yes
+    update_cache: true
 
 - name: Cài đặt Containerd
-  apt:
+  ansible.builtin.apt:
     name: containerd
     state: present
 
 - name: Tạo cấu hình containerd nếu chưa tồn tại
-  shell: |
+  ansible.builtin.shell: |
     mkdir -p /etc/containerd
     containerd config default > /etc/containerd/config.toml
     sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
@@ -73,39 +74,39 @@
   notify: restart containerd
 
 - name: Đảm bảo dịch vụ containerd được bật và chạy
-  systemd:
+  ansible.builtin.systemd:
     name: containerd
     state: started
-    enabled: yes
+    enabled: true
 
 - name: Tạo thư mục chứa keyring Kubernetes
-  file:
+  ansible.builtin.file:
     path: /etc/apt/keyrings
     state: directory
     mode: '0755'
 
 - name: Tải GPG Key của kho Kubernetes v{{ k8s_version }}
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
   changed_when: false
 
 - name: Thêm kho apt của Kubernetes
-  template:
+  ansible.builtin.template:
     src: kubernetes.list.j2
     dest: /etc/apt/sources.list.d/kubernetes.list
     mode: '0644'
 
 - name: Cập nhật apt cache và cài đặt kubelet, kubeadm, kubectl
-  apt:
+  ansible.builtin.apt:
     name:
       - kubelet
       - kubeadm
       - kubectl
     state: present
-    update_cache: yes
+    update_cache: true
 
 - name: Khóa phiên bản kubelet, kubeadm, kubectl
-  dpkg_selections:
+  ansible.builtin.dpkg_selections:
     name: "{{ item }}"
     selection: hold
   loop:
@@ -113,7 +114,16 @@
     - kubeadm
     - kubectl
 
+- name: Cấu hình tham số mở rộng cho kubelet (/etc/default/kubelet)
+  ansible.builtin.copy:
+    src: kubelet
+    dest: /etc/default/kubelet
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart kubelet
+
 - name: Đảm bảo dịch vụ kubelet được bật
-  systemd:
+  ansible.builtin.systemd:
     name: kubelet
-    enabled: yes
+    enabled: true

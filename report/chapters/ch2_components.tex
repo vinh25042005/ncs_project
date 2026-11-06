@@ -6,111 +6,65 @@
     \centering
     \small
     \renewcommand{\arraystretch}{1.25}
-    \caption{Tổng hợp các thành phần hạ tầng và an ninh trong hệ thống}
+    \caption{Tổng hợp các thành phần công nghệ trong hệ thống}
     \label{tab:components_summary}
     \begin{tabularx}{\textwidth}{l l X}
         \toprule
         \textbf{Thành phần} & \textbf{Công nghệ} & \textbf{Vai trò chức năng} \\
         \midrule
-        \textbf{AWS NLB} & Network Load Balancer L4 & Cân bằng tải Active-Active đa vùng, kiểm tra sức khỏe TCP. \\
-        \textbf{Dual Edge Gateway} & 2x Linux Ubuntu Dual-ENI & Định tuyến NAT 2 tầng, phòng thủ biên, SSH Bastion HA. \\
-        \textbf{Suricata IDS/IPS} & Suricata 6.0 (af-packet/NFQUEUE) & Bắt gói tin tầng biên, phát hiện và chặn tấn công Web. \\
-        \textbf{K8s Control Plane} & Kubernetes v1.31.14 & Nền tảng điều phối container và quản lý cụm Multi-AZ. \\
-        \textbf{Ingress NGINX} & Ingress-NGINX Controller & Reverse Proxy tiếp nhận và định tuyến lưu lượng Web TLS. \\
-        \textbf{Rancher Server} & SUSE Rancher v2.15.2 & Quản trị K8s tập trung qua giao diện đồ họa Web. \\
-        \textbf{Wazuh SIEM} & Wazuh Manager v4.14.9 & Máy chủ SOC chuyên biệt thu thập, phân tích và tương quan cảnh báo. \\
-        \textbf{Online Boutique} & Google Demo 12 Services & Ứng dụng thương mại điện tử microservices. \\
-        \textbf{Metrics-Server/HPA} & Kubernetes HPA v2 & Thu thập metrics tài nguyên, tự động co giãn Pod theo tải CPU. \\
-        \textbf{Network Policies} & K8s Zero-Trust Engine & Cô lập mạng nội bộ, ngăn chặn tấn công di chuyển ngang. \\
+        \textbf{High Availability Gateway} & Dual-ENI Linux + AWS NLB & Cân bằng tải Active-Active, định tuyến NAT, SSH Bastion \\
+        \textbf{HAProxy Layer 4} & HAProxy v2.8+ TCP Stream & Cân bằng tải dự phòng chéo vùng (Cross-AZ Failover), TCP Health Check \\
+        \textbf{Suricata IDS/IPS} & Suricata af-packet & Bắt gói tin tầng biên, kiểm tra sâu DPI, phát hiện tấn công Web \\
+        \textbf{Kubernetes} & Upstream K8s v1.31.14 & Nền tảng điều phối container chuẩn Upstream, multi-AZ \\
+        \textbf{Cilium eBPF CNI} & Cilium v1.16.2 Kernel Mode & Mạng Pod hiệu năng cao $O(1)$, VXLAN tunnel, thay thế kube-proxy \\
+        \textbf{Hubble Observability} & Hubble Relay \& Hubble UI & Quan sát luồng mạng thời gian thực L3, L4, L7, sơ đồ dịch vụ đồ họa \\
+        \textbf{Ingress-NGINX} & Ingress Controller hostNetwork & Điểm vào Web tập trung, kết thúc TLS, Virtual Host, rate limiting \\
+        \textbf{Rancher Server} & SUSE Rancher v2.9 & Quản trị K8s đồ họa qua Web, giám sát tài nguyên, phân quyền RBAC \\
+        \textbf{Wazuh SIEM \& XDR} & Wazuh Server \& Indexer v4.9 & Trung tâm SOC, OpenSearch Indexer, tương quan cảnh báo an ninh \\
+        \textbf{Wazuh Agents} & Wazuh Agent trên 5 máy chủ & Thu thập log Suricata eve.json, K8s audit.log và bảo mật OS \\
+        \textbf{Online Boutique} & Google Demo 12 Services & Ứng dụng thương mại điện tử đa ngôn ngữ microservices \\
+        \textbf{Metrics-Server \& HPA} & K8s HPA v2 & Thu thập metrics Kubelet, tự động co giãn Pod theo tải CPU \\
+        \textbf{Network Policies} & Zero-Trust \& Cilium NetPol & Cô lập vi dịch vụ nội bộ, bảo vệ tuyệt đối cổng thanh toán \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
 \section{Chi tiết từng thành phần}
 
-\subsection{AWS Network Load Balancer (NLB L4) và Dual Edge Gateway}
+\subsection{High Availability Edge Gateway}
+Cụm Edge Gateway gồm 2 máy chủ Ubuntu Linux kết hợp AWS Network Load Balancer. Mỗi máy chủ được cấu hình 2 card mạng Dual-ENI: card WAN \texttt{ens5} gắn Elastic IP công khai và card LAN \texttt{ens6} kết nối vào mạng nội bộ. Gateway kết hợp bộ cân bằng tải HAProxy Layer 4 để chuyển tiếp thông minh các cổng dịch vụ 80 (HTTP), 443 (HTTPS), 7443 (Rancher), và duy trì IPTables DNAT cho cổng 8443 (Wazuh SIEM), SNAT Masquerade cho luồng Egress và đóng vai trò SSH Bastion an toàn qua SSH Agent Forwarding.
+
+\subsection{Bộ cân bằng tải HAProxy Layer 4}
+HAProxy được triển khai trên cả hai máy chủ Edge Gateway hoạt động ở chế độ Layer 4 TCP Stream (\texttt{mode tcp}). HAProxy đóng vai trò reverse proxy trung gian giữa AWS NLB và các Ingress Pod trên các K8s Worker nodes:
 \begin{itemize}
-    \item Các máy chủ chứa ứng dụng và dữ liệu không được phép gán địa chỉ IP public trực tiếp ra Internet. Cần có cơ chế cân bằng tải và nút mạng kiểm soát biên để làm tường lửa, bảo vệ cụm K8s nội bộ.
-    \item \textbf{Nhiệm vụ trong hệ thống:}
-    \begin{enumerate}
-        \item \textbf{AWS NLB}: Điểm tiếp nhận lưu lượng công khai duy nhất từ Internet, liên kết 2 Subnet Public tại 2 AZ (\texttt{10.0.1.0/24} và \texttt{10.0.2.0/24}). NLB định kỳ gửi gói tin TCP health check mỗi 10 giây tới các Gateway. Khi phát hiện 1 Gateway gặp sự cố, NLB lập tức cô lập và chuyển hướng toàn bộ lưu lượng sang Gateway còn lại trong vòng 15 giây mà không làm gián đoạn dịch vụ.
-        \item \textbf{Cấu hình Dual-ENI trên Gateway}: Mỗi Gateway sở hữu 2 card mạng ảo độc lập: Card WAN (\texttt{ens5}) gắn Elastic IP công khai và Card LAN (\texttt{ens6}) kết nối vào Subnet nội bộ tương ứng (\texttt{10.0.10.254} tại AZ-a và \texttt{10.0.11.254} tại AZ-b).
-        \item \textbf{Port Forwarding (DNAT)}: Điều hướng các cổng dịch vụ (80, 443, 7443, 8443) tới đúng các địa chỉ IP nội bộ tương ứng trong cụm Kubernetes và máy chủ Wazuh SIEM.
-        \item \textbf{LAN Masquerade}: Rewrite Source IP thành IP LAN của Gateway nhằm triệt tiêu hiện tượng định tuyến bất đối xứng (Asymmetric Routing).
-        \item \textbf{Source NAT (Egress Masquerade)}: Cung cấp đường ra Internet cho các Worker node và Wazuh SIEM theo từng AZ độc lập.
-        \item Cung cấp cổng truy cập dòng lệnh SSH Bastion an toàn qua khóa bảo mật.
-    \end{enumerate}
+    \item \textbf{Cơ chế Active/Backup chéo vùng}: Gateway 1 ưu tiên chuyển tiếp tới Worker 1 (\texttt{10.0.10.139}) và dự phòng Worker 2 (\texttt{10.0.11.21}); Gateway 2 ưu tiên Worker 2 và dự phòng Worker 1.
+    \item \textbf{Kiểm tra sức khỏe chủ động (Active Health Check)}: Cấu hình thông số \texttt{check inter 2s rise 2 fall 2}. HAProxy liên tục thăm dò kết nối TCP tới các Worker node mỗi 2 giây. Nếu một Worker không phản hồi trong 2 lần liên tiếp (4 giây), HAProxy tự động đánh dấu node đó là \texttt{DOWN} và ngay lập tức chuyển hướng lưu lượng sang node dự phòng (Backup) mà không gây gián đoạn phiên kết nối.
+    \item \textbf{Quản trị qua UNIX Socket}: Tích hợp Admin Socket \texttt{/run/haproxy/admin.sock} và cổng thống kê 8404 (\texttt{/haproxy?stats}) phục vụ tự động hóa và giám sát trạng thái thời gian thực.
 \end{itemize}
 
-\subsection{Hệ thống phát hiện xâm nhập mạng Suricata (Network IDS/IPS)}
-\begin{itemize}
-    \item Tường lửa mạng truyền thống chỉ lọc gói tin dựa trên IP và Port, không thể phân tích nội dung bên trong gói tin HTTP. Suricata đóng vai trò kiểm tra sâu gói tin (DPI), phát hiện các tấn công Web nguy hiểm trước khi gói tin vào hệ thống.
-    \item \textbf{Nhiệm vụ trong hệ thống:}
-    \begin{enumerate}
-        \item Triển khai trên cả Gateway 1 và Gateway 2, hoạt động ở chế độ \texttt{af-packet} (hoặc inline NFQUEUE khi kích hoạt IPS) bắt gói tin trực tiếp trên card WAN.
-        \item Dùng luật nhận diện tấn công ứng dụng Web (\texttt{local.rules}) để phát hiện: SQL Injection (\texttt{UNION SELECT}, \texttt{OR 1=1}), Cross-Site Scripting (\texttt{<script>}), Directory Traversal (\texttt{/etc/passwd}, \texttt{../..}) và thăm dò thực thi mã từ xa RCE.
-        \item Xuất dữ liệu nhật ký cảnh báo an ninh dạng chuẩn JSON tại \texttt{/var/log/suricata/eve.json} để chuyển giao tức thì cho Wazuh SIEM.
-    \end{enumerate}
-\end{itemize}
+\subsection{Suricata IDS/IPS}
+Suricata hoạt động ở chế độ \texttt{af-packet} trên card WAN \texttt{ens5}, thực hiện Deep Packet Inspection để phát hiện các cuộc tấn công Web tầng biên.Nhận diện các dạng tấn công: SQL Injection, Cross-Site Scripting, Directory Traversal và thăm dò tập tin nhạy cảm \texttt{.env}, \texttt{.git}. Logs được xuất tại \texttt{/var/log/suricata/eve.json} để chuyển về Wazuh SIEM.
 
-\subsection{Cụm Kubernetes v1.31 Multi-AZ}
-\begin{itemize}
-    \item Tự động hoá việc triển khai, scaling, quản lý các ứng dụng dạng container trên nền tảng Multi-AZ.
-    \item \textbf{Nhiệm vụ trong hệ thống:}
-    \begin{enumerate}
-        \item Duy trì trạng thái vận hành của cụm thông qua Control Plane trên Master node (API Server, Etcd, Controller Manager, Scheduler).
-        \item Quản lý Pod và tự động phục hồi Pod lỗi (\textit{Self-healing}) phân tán đều trên 2 Worker node ở 2 Availability Zones khác nhau.
-        \item Cân bằng tải nội bộ thông qua Kube-Proxy và điều phối lưu lượng mạng Pod-to-Pod thông qua CNI Flannel.
-    \end{enumerate}
-\end{itemize}
+\subsection{Kubernetes v1.31 Control Plane và Workers}
+Cụm Kubernetes v1.31 sử dụng Containerd runtime SystemdCgroup. Hai Worker node được nâng cấp lên cấu hình \texttt{c7i-flex.large} (2 vCPU, 4GB RAM) phân bổ trên 2 Availability Zones ap-southeast-1a và ap-southeast-1b để vận hành các microservices và Ingress-NGINX.
+
+\subsection{Cilium CNI eBPF và Hubble Observability}
+Cilium v1.16.2 hoạt động ở chế độ eBPF Kernel Mode. Mạng Pod giao tiếp qua VXLAN cổng 8472/UDP trên dải CIDR \texttt{10.244.0.0/16}.
 
 \subsection{Ingress-NGINX Controller}
-\begin{itemize}
-    \item Nhận lưu lượng HTTP/HTTPS tại điểm vào cụm K8s. Thay vì phải mở nhiều cổng NodePort, Ingress Controller đóng vai trò Reverse Proxy.
-    \item \textbf{Nhiệm vụ trong hệ thống:}
-    \begin{enumerate}
-        \item Triển khai trên Master node với cấu hình \texttt{hostNetwork: true}, liên kết trực tiếp với cổng 80 và 443 của máy chủ.
-        \item Tiếp nhận các gói tin Web được chuyển tiếp từ các Gateway, phân tích HTTP Host Header và điều phối chính xác về Service \texttt{frontend} của ứng dụng Online Boutique, đồng thời thực thi mã hóa TLS bảo vệ dữ liệu truyền tải.
-    \end{enumerate}
-\end{itemize}
+Ingress-NGINX được nâng cấp triển khai Multi-AZ Active-Active trên cả 2 Worker node (Worker 1 và Worker 2) với \texttt{hostNetwork: true}, tiếp nhận trực tiếp lưu lượng từ HAProxy tại cổng 80 (HTTP) và cổng 443 (HTTPS). Controller thực hiện kết thúc mã hóa TLS qua chứng chỉ \texttt{boutique-tls}, chuyển hướng HTTP sang HTTPS, áp dụng rate limiting 50 req/s, giúp giải phóng hoàn toàn tài nguyên Control Plane trên Master node.
 
-\subsection{Rancher Management Server v2.15.2}
-\begin{itemize}
-    \item Quản trị cụm Kubernetes bằng giao diện quản trị đồ họa trên web một cách trực quan hơn dùng CLI.
-    \item \textbf{Nhiệm vụ trong hệ thống:}
-    \begin{enumerate}
-        \item Cung cấp bảng điều khiển trực quan theo thời gian thực giám sát mức độ tiêu thụ CPU, RAM, trạng thái các Node và Workload.
-        \item Quản lý phân quyền truy cập RBAC và theo dõi sức khỏe tổng thể của hệ thống.
-        \item Lắng nghe trên cổng NodePort nội bộ \texttt{30443} và được các Gateway chuyển hướng công khai qua cổng \textbf{\texttt{7443}}.
-    \end{enumerate}
-\end{itemize}
+\subsection{Rancher Management Server}
+Rancher Server v2.9 được triển khai trong namespace \texttt{cattle-system}, cung cấp giao diện web trực quan để quản trị cụm, phân quyền RBAC và giám sát tài nguyên. Rancher lắng nghe trên Service NodePort \texttt{30443} và được Gateway chuyển tiếp qua cổng công khai 7443 (HTTPS).
 
-\subsection{Hệ thống giám sát an ninh tập trung Wazuh SIEM \& XDR}
-\begin{itemize}
-    \item Wazuh SIEM đóng vai trò trung tâm điều hành an ninh (\textit{Security Operation Center - SOC}), tự động gom log, giải mã và tương quan sự kiện để đưa ra cảnh báo chính xác.
-    \item \textbf{Nhiệm vụ trong hệ thống:}
-    \begin{enumerate}
-        \item \textbf{Wazuh Manager} (vận hành trên máy chủ chuyên biệt \texttt{wazuh-siem} trong Subnet Management \texttt{10.0.20.10}): Vận hành công cụ giải mã và phân tích luật tương quan theo chuẩn MITRE ATT\&CK; cung cấp REST API (port \texttt{55000} / NLB port \textbf{\texttt{8443}}).
-        \item \textbf{Wazuh Agent 003} (trên Gateway 1): Theo dõi file nhật ký sự kiện \texttt{/var/log/suricata/eve.json} và nhật ký xác thực PAM/SSH của Gateway 1.
-        \item \textbf{Wazuh Agent 001} (trên Gateway 2): Theo dõi file nhật ký sự kiện \texttt{/var/log/suricata/eve.json} và nhật ký xác thực PAM/SSH của Gateway 2.
-        \item \textbf{Wazuh Agent 002} (trên K8s Master): Thu thập trực tiếp nhật ký kiểm toán hệ thống \texttt{/var/log/kubernetes/audit.log} từ kube-apiserver.
-    \end{enumerate}
-\end{itemize}
+\subsection{Wazuh SIEM \& XDR}
+Wazuh SIEM chạy trong Management Subnet, bao gồm Wazuh Manager, OpenSearch Indexer và Wazuh Dashboard cổng 8443 (HTTPS). Năm Wazuh Agents được cài đặt trên Gateway 1, Gateway 2, Master, Worker 1 và Worker 2 để thu thập log Suricata \texttt{eve.json}, K8s API Server \texttt{audit.log}.
 
-\subsection{Ứng dụng Google Online Boutique (12 Microservices)}
-\begin{itemize}
-    \item Cung cấp môi trường ứng dụng thực tế với đầy đủ các ngăn xếp công nghệ hiện đại (Go, C\#, Java, Python, Node.js) và cơ sở dữ liệu in-memory Redis để đánh giá năng lực bảo vệ của hệ thống trước các kịch bản tấn công.
-    \item \textbf{Nhiệm vụ trong hệ thống:} Vận hành chu trình mua sắm trực tuyến hoàn chỉnh: duyệt hàng (\texttt{productcatalogservice}), quản lý giỏ hàng (\texttt{cartservice} \& \texttt{redis-cart}), thanh toán thẻ (\texttt{paymentservice}), tính toán tiền tệ (\texttt{currencyservice}), gửi thư xác nhận (\texttt{emailservice}) và tự sinh tải giả lập (\texttt{loadgenerator}).
-\end{itemize}
+\subsection{Google Online Boutique}
+Ứng dụng thương mại điện tử gồm 12 microservices triển khai trong namespace \texttt{online-boutique}: \texttt{frontend}, \texttt{cartservice}, \texttt{redis-cart}, \texttt{productcatalogservice}, \texttt{checkoutservice}, \texttt{paymentservice}, \texttt{currencyservice}, \texttt{emailservice}, \texttt{shippingservice}, \texttt{recommendationservice}, \texttt{adservice} và \texttt{loadgenerator}.
 
-\subsection{Cơ chế HPA (Horizontal Pod Autoscaler v2)}
-\begin{itemize}
-    \item Trong các đợt cao điểm mua sắm hoặc khi bị DDoS, việc tăng giảm tài nguyên thủ công sẽ dẫn đến nghẽn dịch vụ hoặc lãng phí chi phí máy chủ.
-    \item \textbf{Nhiệm vụ trong hệ thống:} Metrics-Server liên tục thu thập mức độ sử dụng CPU/RAM của các Pod; HPA tự động tính toán và điều chỉnh số lượng Pod (ví dụ: nhân bản \texttt{frontend} từ 1 lên tối đa 10 bản sao) khi mức sử dụng CPU vượt ngưỡng 60\%.
-\end{itemize}
+\subsection{Horizontal Pod Autoscaler HPA v2 và Metrics-Server}
+Metrics-Server v0.7.2 thu thập số liệu CPU và bộ nhớ từ Kubelet qua cổng 10250. HPA v2 tự động co giãn số lượng Pod của các dịch vụ cốt lõi \texttt{frontend}, \texttt{cartservice}, \texttt{checkoutservice} khi mức sử dụng CPU vượt ngưỡng 70\%--75\%.
 
-\subsection{Kubernetes NetworkPolicies}
-\begin{itemize}
-    \item Theo mặc định, mọi Pod trong cụm Kubernetes đều có thể kết nối không giới hạn tới bất kỳ Pod nào khác. Nếu một vi dịch vụ công khai bị xâm nhập, kẻ tấn công có thể dễ dàng tấn công di chuyển ngang sang các dịch vụ tài chính nhạy cảm.
-    \item \textbf{Nhiệm vụ trong hệ thống:} Thiết lập các bức tường lửa phần mềm ở tầng Pod: \textbf{Cách ly hoàn toàn \texttt{paymentservice}}, chỉ cho phép duy nhất dịch vụ \texttt{checkoutservice} kết nối tới cổng gRPC 50051; chặn toàn bộ mọi kết nối trái phép khác.
-\end{itemize}
+\subsection{Zero-Trust Network Policies}
+Hệ thống thiết lập mô hình Zero-Trust ở tầng mạng Pod: cô lập hoàn toàn \texttt{paymentservice}, chỉ chấp nhận kết nối từ \texttt{checkoutservice} qua cổng gRPC 50051; áp dụng \texttt{CiliumNetworkPolicy} cho phép Ingress host traffic tới \texttt{frontend},...

@@ -1,10 +1,12 @@
 ---
-# NCS Project: pfSense/Linux Gateway Suricata IDS/IPS + K8s v1.31 + Metrics-Server + Online Boutique
+# ==============================================================================
+# NCS Project: Multi-Gateway Suricata IDS/IPS + K8s v1.31 + Cilium eBPF + Online Boutique + Wazuh SIEM
+# ==============================================================================
 
 # Giai đoạn 1: Cấu hình Gateway và kích hoạt Suricata IDS/IPS
 - name: Giai đoạn 1 - Tự động hóa cấu hình Gateway & Suricata IDS/IPS
   hosts: gateway
-  become: yes
+  become: true
   tags: [gateway]
   roles:
     - gateway
@@ -12,63 +14,73 @@
 # Giai đoạn 2: Chuẩn bị OS, containerd và cài kubeadm/kubelet/kubectl trên mọi node
 - name: Giai đoạn 2 - Cấu hình nền tảng trên toàn bộ các node (Common Prerequisites)
   hosts: k8s_cluster
-  become: yes
+  become: true
   tags: [common]
   roles:
     - common
 
-# Giai đoạn 3: Khởi tạo Control-Plane Master node và cài Flannel CNI
+# Giai đoạn 3: Khởi tạo Control-Plane Master node
 - name: Giai đoạn 3 - Khởi tạo Kubernetes Control-Plane (kubeadm init)
   hosts: master
-  become: yes
+  become: true
+  environment:
+    KUBECONFIG: "{{ kubeconfig | default('/etc/kubernetes/admin.conf') }}"
   tags: [master]
   roles:
     - master
 
-# Giai đoạn 4: Tham gia các Worker node vào cụm (Multi-AZ)
-- name: Giai đoạn 4 - Kết nối Worker nodes vào cụm (kubeadm join)
+# Giai đoạn 4: Cài đặt Cilium CNI (eBPF Kernel Mode) và kích hoạt Hubble UI
+- name: Giai đoạn 4 - Triển khai Cilium CNI (eBPF) & Hubble UI Observability
+  hosts: master
+  become: true
+  environment:
+    KUBECONFIG: "{{ kubeconfig | default('/etc/kubernetes/admin.conf') }}"
+  tags: [cilium, hubble]
+  roles:
+    - cilium
+
+# Giai đoạn 5: Tham gia các Worker node vào cụm (Multi-AZ)
+- name: Giai đoạn 5 - Kết nối Worker nodes vào cụm (kubeadm join)
   hosts: workers
-  become: yes
+  become: true
   tags: [worker, workers]
   roles:
     - worker
 
-# Giai đoạn 5: Cài đặt Ingress-NGINX Bare-metal HostNetwork trên Master
-- name: Giai đoạn 5 - Triển khai Ingress-NGINX Controller
+# Giai đoạn 6: Cài đặt Ingress-NGINX Controller
+- name: Giai đoạn 6 - Triển khai Ingress-NGINX Controller
   hosts: master
-  become: yes
+  become: true
+  environment:
+    KUBECONFIG: "{{ kubeconfig | default('/etc/kubernetes/admin.conf') }}"
   tags: [ingress]
   roles:
     - ingress
 
-# Giai đoạn 6: Cài đặt Metrics-Server cho cụm K8s (phục vụ HPA và kubectl top)
-- name: Giai đoạn 6 - Triển khai Metrics-Server cho HPA Autoscaling
+# Giai đoạn 7: Cài đặt Metrics-Server cho cụm K8s (phục vụ HPA và kubectl top)
+- name: Giai đoạn 7 - Triển khai Metrics-Server cho HPA Autoscaling
   hosts: master
-  become: yes
+  become: true
+  environment:
+    KUBECONFIG: "{{ kubeconfig | default('/etc/kubernetes/admin.conf') }}"
   tags: [metrics, metrics_server]
   roles:
     - metrics_server
 
-# Giai đoạn 7: Cài bộ thi hành NetworkPolicy (kube-network-policies) cho cụm Flannel
-- name: Giai đoạn 7.5 - Cài bộ thi hành NetworkPolicy
-  hosts: master
-  become: yes
-  tags: [netpol, netpol_enforcer]
-  roles:
-    - netpol_enforcer
-
 # Giai đoạn 8: Triển khai các microservices của Google Online Boutique từ thư mục k8s/
 - name: Giai đoạn 8 - Triển khai Google Online Boutique và Network Policies
   hosts: master
-  become: yes
-  tags: [app, online_boutique, netpol]
+  become: true
+  environment:
+    KUBECONFIG: "{{ kubeconfig | default('/etc/kubernetes/admin.conf') }}"
+  tags: [app, online_boutique]
   roles:
     - online_boutique
 
 # Giai đoạn 9: Wazuh Manager trên máy chủ SIEM chuyên biệt (Management Subnet 10.0.20.10)
 - name: Giai đoạn 9 - Wazuh Manager trên máy chủ SIEM chuyên biệt
   hosts: wazuh
-  become: yes
+  become: true
   tags: [wazuh, wazuh_manager]
   roles:
     - wazuh_manager
@@ -76,7 +88,7 @@
 # Giai đoạn 10: Wazuh Agent trên các Gateway (đẩy log Suricata eve.json)
 - name: Giai đoạn 10 - Wazuh Agent trên Gateway (Suricata eve.json)
   hosts: gateway
-  become: yes
+  become: true
   tags: [wazuh, wazuh_agent]
   vars:
     wazuh_agent_suricata: true
@@ -86,9 +98,17 @@
 # Giai đoạn 10.5: Wazuh Agent trên K8s Master (đẩy K8s audit.log)
 - name: Giai đoạn 10.5 - Wazuh Agent trên Master (K8s audit log)
   hosts: master
-  become: yes
+  become: true
   tags: [wazuh, wazuh_agent]
   vars:
     wazuh_agent_k8s_audit: true
+  roles:
+    - wazuh_agent
+
+# Giai đoạn 10.6: Wazuh Agent trên K8s Workers (Giám sát bảo mật máy chủ Worker)
+- name: Giai đoạn 10.6 - Wazuh Agent trên K8s Workers
+  hosts: workers
+  become: true
+  tags: [wazuh, wazuh_agent]
   roles:
     - wazuh_agent

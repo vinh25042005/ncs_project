@@ -144,7 +144,7 @@ variable "k8s_master_instance_type" {
 variable "k8s_worker_instance_type" {
   description = "Loại máy chủ EC2 cho Upstream Kubernetes Worker Nodes"
   type        = string
-  default     = "t3.small"
+  default     = "c7i-flex.large"
 }
 
 variable "worker_count" {

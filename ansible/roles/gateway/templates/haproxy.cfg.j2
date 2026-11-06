@@ -1,0 +1,73 @@
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
+    user haproxy
+    group haproxy
+    daemon
+    stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+    stats timeout 30s
+
+defaults
+    log     global
+    mode    tcp
+    option  tcplog
+    option  dontlognull
+    timeout connect 5000ms
+    timeout client  50000ms
+    timeout server  50000ms
+
+# Frontend & Backend: Web HTTP (Port 80)
+frontend http_in
+    bind *:80
+    mode tcp
+    default_backend http_nodes
+
+backend http_nodes
+    mode tcp
+    balance roundrobin
+    option tcp-check
+{% if inventory_hostname == 'pfsense-gateway-1' %}
+    server worker1 {{ worker_1_ip }}:80 check inter 2s rise 2 fall 2
+    server worker2 {{ worker_2_ip }}:80 check backup inter 2s rise 2 fall 2
+{% else %}
+    server worker2 {{ worker_2_ip }}:80 check inter 2s rise 2 fall 2
+    server worker1 {{ worker_1_ip }}:80 check backup inter 2s rise 2 fall 2
+{% endif %}
+
+# Frontend & Backend: Web HTTPS (Port 443)
+frontend https_in
+    bind *:443
+    mode tcp
+    default_backend https_nodes
+
+backend https_nodes
+    mode tcp
+    balance roundrobin
+    option tcp-check
+{% if inventory_hostname == 'pfsense-gateway-1' %}
+    server worker1 {{ worker_1_ip }}:443 check inter 2s rise 2 fall 2
+    server worker2 {{ worker_2_ip }}:443 check backup inter 2s rise 2 fall 2
+{% else %}
+    server worker2 {{ worker_2_ip }}:443 check inter 2s rise 2 fall 2
+    server worker1 {{ worker_1_ip }}:443 check backup inter 2s rise 2 fall 2
+{% endif %}
+
+# Frontend & Backend: Rancher Server NodePort (Port 7443)
+frontend rancher_in
+    bind *:7443
+    mode tcp
+    default_backend rancher_nodes
+
+backend rancher_nodes
+    mode tcp
+    option tcp-check
+    server master {{ master_ip }}:30443 check inter 3s rise 2 fall 2
+
+# HAProxy Stats (Port 8404 nội bộ)
+frontend stats
+    bind *:8404
+    mode http
+    stats enable
+    stats uri /
+    stats refresh 5s

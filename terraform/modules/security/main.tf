@@ -45,7 +45,7 @@ resource "aws_security_group" "pfsense" {
     from_port   = 8443
     to_port     = 8443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.admin_cidr]
   }
 
   ingress {
@@ -53,7 +53,7 @@ resource "aws_security_group" "pfsense" {
     from_port   = 7443
     to_port     = 7443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.admin_cidr]
   }
 
   # Cho phép toàn bộ traffic từ mạng nội bộ VPC đi qua pfSense
@@ -84,7 +84,7 @@ resource "aws_security_group" "k8s" {
   description = "Security Group for Upstream Kubernetes Master and Worker Nodes"
   vpc_id      = var.vpc_id
 
-  # Cho phép nội bộ các node K8s giao tiếp với nhau (Flannel, Kubelet, etcd)
+  # Cho phép nội bộ các node K8s giao tiếp với nhau 
   ingress {
     description = "Inter-node cluster communication"
     from_port   = 0
