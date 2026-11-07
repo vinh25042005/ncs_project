@@ -93,6 +93,30 @@
     <group>k8s,k8s_audit,credential_access,</group>
   </rule>
 
+  <!-- Whitelist 1: Kubelet daemon node truy cap hop le de mount Secret vao Pod -->
+  <rule id="110010" level="0">
+    <if_sid>110003</if_sid>
+    <field name="user.username" type="pcre2">^system:node:</field>
+    <description>Kubernetes: Authorized Kubelet node secret access (silenced).</description>
+    <group>k8s,k8s_audit,</group>
+  </rule>
+
+  <!-- Whitelist 2: Platform Ingress-NGINX, Cilium va Rancher Operator service accounts -->
+  <rule id="110011" level="0">
+    <if_sid>110003</if_sid>
+    <field name="user.username" type="pcre2">^system:serviceaccount:(ingress-nginx|cilium|cattle-[a-z0-9\-]+):</field>
+    <description>Kubernetes: Platform service account (Ingress-NGINX / Cilium / Rancher) secret access (silenced).</description>
+    <group>k8s,k8s_audit,</group>
+  </rule>
+
+  <!-- Whitelist 3: Helm Package Manager truy van metadata release state -->
+  <rule id="110012" level="0">
+    <if_sid>110003</if_sid>
+    <field name="requestURI" type="pcre2">(owner(=|%3D)helm|helm\.sh)</field>
+    <description>Kubernetes: Helm package manager release state check (silenced).</description>
+    <group>k8s,k8s_audit,</group>
+  </rule>
+
   <!-- Phát hiện chạy lệnh tương tác bên trong Pod (Exec / Attach into Pod) -->
   <rule id="110004" level="9">
     <if_sid>110000</if_sid>
@@ -130,3 +154,42 @@
   </rule>
 
 </group>
+
+<!-- 3. FALCO CONTAINER RUNTIME SECURITY DETECTION              -->
+<group name="falco,container_runtime,">
+
+  <!-- Base rule nhận diện sự kiện Falco Runtime Security (JSON) -->
+  <rule id="120000" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="rule" type="pcre2">.+</field>
+    <field name="output" type="pcre2">.+</field>
+    <description>Falco Container Runtime event grouping.</description>
+    <group>falco,container_runtime,</group>
+  </rule>
+
+  <!-- Cảnh báo mức độ Thông báo / Cảnh báo (Notice, Warning) -->
+  <rule id="120001" level="7">
+    <if_sid>120000</if_sid>
+    <field name="priority" type="pcre2">^(Warning|Notice)$</field>
+    <description>Falco Alert: $(rule) - $(output)</description>
+    <group>falco,runtime_warning,</group>
+  </rule>
+
+  <!-- Whitelist 4: Khoi tao container Redis-stack hop le trong Falco sidekick UI -->
+  <rule id="120010" level="0">
+    <if_sid>120001</if_sid>
+    <field name="output" type="pcre2">container_name=redis.+command=sh /entrypoint\.sh</field>
+    <description>Falco: Benign Redis Stack container startup entrypoint (silenced).</description>
+    <group>falco,container_runtime,</group>
+  </rule>
+
+  <!-- Cảnh báo mức độ Nguy hiểm cao (Error, Critical, Alert, Emergency) -->
+  <rule id="120002" level="10">
+    <if_sid>120000</if_sid>
+    <field name="priority" type="pcre2">^(Error|Critical|Alert|Emergency)$</field>
+    <description>Falco High Severity Threat: $(rule) - $(output)</description>
+    <group>falco,runtime_threat,</group>
+  </rule>
+
+</group>
+

@@ -52,7 +52,7 @@
         <log_format>json</log_format>
         <location>/var/log/suricata/eve.json</location>
       </localfile>
-  when: wazuh_agent_suricata | bool
+  when: wazuh_agent_suricata | default(false) | bool
   notify: restart wazuh-agent
 
 - name: "(gateway) Logrotate cho Suricata eve.json (tránh đầy đĩa)"
@@ -60,7 +60,7 @@
     src: suricata-eve.logrotate
     dest: /etc/logrotate.d/suricata-eve
     mode: "0644"
-  when: wazuh_agent_suricata | bool
+  when: wazuh_agent_suricata | default(false) | bool
 
 - name: "(master) Cấp quyền đọc file K8s audit log cho user wazuh"
   ansible.builtin.shell: |
@@ -85,6 +85,32 @@
         <location>/var/log/kubernetes/audit.log</location>
       </localfile>
   when: wazuh_agent_k8s_audit | default(false) | bool
+  notify: restart wazuh-agent
+
+- name: "(k8s nodes) Cấp quyền đọc file Falco events.json cho user wazuh"
+  ansible.builtin.shell: |
+    mkdir -p /var/log/falco
+    touch /var/log/falco/events.json
+    chmod 755 /var/log/falco
+    chmod 644 /var/log/falco/events.json
+    if command -v setfacl >/dev/null 2>&1; then
+      setfacl -R -m u:wazuh:rX /var/log/falco 2>/dev/null || true
+      setfacl -d -m u:wazuh:rX /var/log/falco 2>/dev/null || true
+    fi
+  when: wazuh_agent_falco | default(false) | bool
+  changed_when: false
+
+- name: "(k8s nodes) Đọc Falco events.json vào Wazuh Agent"
+  ansible.builtin.blockinfile:
+    path: /var/ossec/etc/ossec.conf
+    marker: "<!-- {mark} ANSIBLE: falco events -->"
+    insertbefore: "</ossec_config>"
+    block: |
+      <localfile>
+        <log_format>json</log_format>
+        <location>/var/log/falco/events.json</location>
+      </localfile>
+  when: wazuh_agent_falco | default(false) | bool
   notify: restart wazuh-agent
 
 - name: Bật & chạy wazuh-agent

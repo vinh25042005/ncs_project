@@ -1,133 +1,282 @@
 \chapter{Triển khai các thành phần}
 \label{ch:deployment}
 
+Chương này trình bày chi tiết quá trình hiện thực hóa và cấu hình kỹ thuật của toàn bộ các phân hệ trong kiến trúc hạ tầng đám mây phân tán kết hợp bảo mật sâu. Mọi thông số, đoạn mã và tập tin cấu hình được trích dẫn trực tiếp từ các máy chủ ảo (Virtual Machines) và các vùng chứa (Containers) đang vận hành trong môi trường thực tế, thể hiện rõ cách thức các thành phần phối hợp, định tuyến và trao đổi dữ liệu.
 
-\section{Cấu hình Dual-ENI cho máy chủ Gateway}
-Mỗi máy chủ Gateway được trang bị 2 card mạng Dual-ENI độc lập phục vụ định tuyến và phân tách mạng:
-\begin{lstlisting}[language=bash, caption={Khai báo Dual-ENI cho Gateway trong Terraform}]
-resource "aws_instance" "gateway" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.small"
+% ==============================================================================
+% 1. PHÂN HỆ BIÊN MẠNG (GATEWAYS)
+% ==============================================================================
+\section{Cấu hình Phân hệ Biên mạng (Gateway 1 \& Gateway 2)}
 
-  network_interface {
-    network_interface_id = aws_network_interface.gateway_wan.id # Card ens5 Public Subnet
-    device_index         = 0
-  }
-  network_interface {
-    network_interface_id = aws_network_interface.gateway_lan.id # Card ens6 Private Subnet
-    device_index         = 1
-  }
-}
+Hệ thống biên mạng được thiết kế theo mô hình High Availability đa vùng (Multi-AZ), bao gồm hai máy chủ Gateway độc lập: Gateway 1 đặt tại Availability Zone ap-southeast-1a (card WAN có IP nội bộ \texttt{10.0.1.69} gắn Elastic IP công khai \texttt{13.251.225.100}, card LAN nội bộ \texttt{10.0.10.254}) và Gateway 2 đặt tại ap-southeast-1b (card WAN có IP nội bộ \texttt{10.0.2.220} gắn Elastic IP công khai \texttt{18.140.131.125}, card LAN nội bộ \texttt{10.0.11.254}).
+
+\subsection{Định tuyến nâng cao Dual-ENI và Policy Routing}
+Mỗi máy chủ Gateway được trang bị 2 card mạng độc lập: card \texttt{ens5} thuộc Public Subnet (WAN) tiếp nhận lưu lượng Internet và card \texttt{ens6} thuộc Private Subnet (LAN) kết nối vào mạng nội bộ của cụm máy chủ. Để ngăn chặn triệt để hiện tượng định tuyến bất đối xứng (Asymmetric Routing) khiến các kết nối TCP bị ngắt quãng, cấu hình Netplan phân chia rõ ràng metric định tuyến giữa hai giao diện:
+
+\begin{lstlisting}[language=bash, caption={Cấu hình Policy Routing Dual-ENI (/etc/netplan/60-dual-eni.yaml)}]
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ens5:
+      dhcp4: true
+      dhcp4-overrides:
+        route-metric: 100
+    ens6:
+      dhcp4: false
+      addresses:
+        - 10.0.10.254/24
+      routes:
+        - to: 10.0.10.0/24
+          via: 10.0.10.254
+          metric: 200
 \end{lstlisting}
+Với cấu hình trên, toàn bộ lưu lượng mặc định đi ra ngoài Internet được ưu tiên chuyển qua cổng \texttt{ens5} với metric 100. Trong khi đó, các luồng trao đổi nội bộ thuộc dải mạng \texttt{10.0.10.0/24} (trên Gateway 1) hoặc \texttt{10.0.11.0/24} (trên Gateway 2) được định tuyến trực tiếp qua cổng \texttt{ens6}.
 
-\section{Cấu hình Gateway, HAProxy Layer 4 và Suricata IDS/IPS}
-\subsection{Định tuyến mạng và cấu hình IPTables NAT}
-Kích hoạt chuyển tiếp gói tin, thiết lập Policy Routing qua Netplan để chống định tuyến bất đối xứng và cấu hình bảng IPTables:
-\begin{lstlisting}[language=bash, caption={Cấu hình IPTables SNAT và DNAT trên Gateway}]
-# Kich hoat Linux IP Forwarding
+\subsection{Cấu hình chuyển tiếp gói tin và tường lửa IPTables NAT}
+Gateway đóng vai trò là điểm nút chuyển tiếp dữ liệu (Forwarding Router) và phân phối an ninh. Hệ thống kích hoạt tính năng chuyển tiếp gói tin của nhân Linux và thiết lập các quy tắc IPTables chuyên dụng:
+
+\begin{lstlisting}[language=bash, caption={Các quy tắc IPTables chuyển tiếp và phân phối an ninh trên Gateway}]
+# 1. Kich hoat Linux IP Forwarding trong /etc/sysctl.conf
 sudo sysctl -w net.ipv4.ip_forward=1
 
-# Chuyen tiep cong 8443 vao Wazuh SIEM Dashboard tren may chu rieng biet
-sudo iptables -t nat -A PREROUTING -i ens5 -p tcp --dport 8443 -j DNAT --to-destination 10.0.20.10:443
+# 2. Quy tac NAT chuyen tiep cong (DNAT)
+# Chuyen tiep cong 8443 tren card WAN ens5 toi Wazuh SIEM Dashboard (10.0.20.10:443)
+-A PREROUTING -i ens5 -p tcp -m tcp --dport 8443 -j DNAT --to-destination 10.0.20.10:443
 
-# Mo cong INPUT cho HAProxy tiep nhan truc tiep luong HTTP, HTTPS, Rancher va Stats
-sudo iptables -A INPUT -p tcp -m multiport --dports 80,443,7443,8404 -j ACCEPT
+# 3. Quy tac Source NAT Masquerade
+-A POSTROUTING -o ens5 -j MASQUERADE
+-A POSTROUTING -o ens6 -j MASQUERADE
 
-# Cau hinh Source NAT Masquerade cho luong Egress ra ngoai Internet
-sudo iptables -t nat -A POSTROUTING -o ens5 -j MASQUERADE
-sudo iptables -t nat -A POSTROUTING -o ens6 -j MASQUERADE
+# 4. Quy tac loc goi tin (Filter Table)
+# Chap nhan ket noi den cac dich vu cuc bo cua Gateway: 80, 443, 7443, 8404
+-A INPUT -p tcp -m multiport --dports 80,443,7443,8404 -j ACCEPT
+
+# Chuyen tiep luong du lieu qua hang doi NFQUEUE cua Suricata de kiem tra chuyen sau (IPS)
+-A FORWARD -j NFQUEUE --queue-num 0 --queue-bypass
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -i ens6 -o ens5 -j ACCEPT
+-A FORWARD -d 10.0.20.10/32 -p tcp -m tcp --dport 443 -j ACCEPT
 \end{lstlisting}
 
-\subsection{Cấu hình bộ cân bằng tải HAProxy Layer 4}
-HAProxy được cài đặt và quản trị tập trung qua Ansible trên cả hai Gateway. Cấu hình vận hành ở chế độ \texttt{mode tcp} (Layer 4 Stream), tích hợp kiểm tra sức khỏe chủ động và cơ chế Active/Backup:
-\begin{lstlisting}[language=bash, caption={Cấu hình HAProxy Layer 4 trên Gateway 1 (haproxy.cfg)}]
+\subsection{Cấu hình bộ cân bằng tải HAProxy Layer 4 Active/Backup Cross-AZ}
+HAProxy được triển khai trên cả hai máy chủ biên mạng ở chế độ \texttt{mode tcp} (Layer 4 Stream), giúp chuyển tiếp trực tiếp các gói tin TCP mà không giải mã SSL tại biên, bảo toàn tính toàn vẹn của kết nối mã hóa đầu-cuối. 
+
+Nhằm tối ưu hóa hiệu năng và độ trễ mạng liên vùng, hệ thống áp dụng cơ chế điều phối tải động theo từng Availability Zone kết hợp chuyển đổi dự phòng tức thời (Cross-AZ Active/Backup). File cấu hình thực tế được triển khai đồng bộ qua Ansible:
+
+\begin{lstlisting}[language=bash, caption={Cấu hình HAProxy thực tế trên Gateway 1 (/etc/haproxy/haproxy.cfg)}]
 global
     log /dev/log local0
-    stats socket /run/haproxy/admin.sock mode 660 level admin
-    stats timeout 30s
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
     user haproxy
     group haproxy
+    daemon
+    stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+    stats timeout 30s
 
 defaults
     log     global
     mode    tcp
     option  tcplog
+    option  dontlognull
     timeout connect 5000ms
     timeout client  50000ms
     timeout server  50000ms
 
-# Frontends va Backends cho HTTP (Cong 80)
+# Frontend va Backend: Web HTTP (Cong 80)
 frontend http_in
     bind *:80
+    mode tcp
     default_backend http_nodes
 
 backend http_nodes
     mode tcp
     balance roundrobin
+    option tcp-check
     server worker1 10.0.10.139:80 check inter 2s rise 2 fall 2
-    server worker2 10.0.11.21:80 check inter 2s rise 2 fall 2 backup
+    server worker2 10.0.11.21:80 check backup inter 2s rise 2 fall 2
 
-# Frontends va Backends cho HTTPS (Cong 443)
+# Frontend va Backend: Web HTTPS (Cong 443)
 frontend https_in
     bind *:443
+    mode tcp
     default_backend https_nodes
 
 backend https_nodes
     mode tcp
     balance roundrobin
+    option tcp-check
     server worker1 10.0.10.139:443 check inter 2s rise 2 fall 2
-    server worker2 10.0.11.21:443 check inter 2s rise 2 fall 2 backup
+    server worker2 10.0.11.21:443 check backup inter 2s rise 2 fall 2
 
-# Frontends va Backends cho Rancher (Cong 7443)
+# Frontend va Backend: Rancher Management Server (Cong 7443)
 frontend rancher_in
     bind *:7443
-    default_backend rancher_nodes
-
-backend rancher_nodes
     mode tcp
+    default_backend rancher_backend
+
+backend rancher_backend
+    mode tcp
+    balance roundrobin
+    option tcp-check
     server master 10.0.10.10:30443 check inter 2s rise 2 fall 2
 
-# Dashboard thong ke HAProxy Stats
+# Dashboard giam sat chi so HAProxy Stats
 listen stats
     bind *:8404
     mode http
     stats enable
-    stats uri /haproxy?stats
+    stats uri /
     stats refresh 5s
 \end{lstlisting}
-Trên Gateway 2, cấu hình đảo ngược vai trò ưu tiên nhằm tối ưu hóa độ trễ cục bộ theo từng Availability Zone: \texttt{worker2} là Active chính và \texttt{worker1} đóng vai trò \texttt{backup}.
 
-\subsection{Cấu hình luật phát hiện tấn công cho Suricata}
-Suricata lắng nghe trên card WAN \texttt{ens5} ở chế độ \texttt{af-packet} với tập luật \texttt{local.rules}:
-\begin{lstlisting}[language=bash, caption={Tập luật phát hiện tấn công trong local.rules của Suricata}]
-# Nhan dien SQL Injection (UNION SELECT, OR 1=1)
-alert http any any -> any any (msg:"ATTACK: SQL Injection Union Select Detected"; flow:to_server,established; content:"UNION"; nocase; content:"SELECT"; nocase; sid:1000001; rev:1;)
-alert http any any -> any any (msg:"ATTACK: SQL Injection OR 1=1 Detected"; flow:to_server,established; content:"or"; nocase; content:"1=1"; sid:1000002; rev:1;)
+Để thực hiện cơ chế gọi chéo nhau (Cross-AZ Failover), cấu hình HAProxy trên Gateway 2 được tự động sinh với thứ tự ưu tiên đảo ngược:
+\begin{lstlisting}[language=bash, caption={Cấu hình backend HAProxy trên Gateway 2 (/etc/haproxy/haproxy.cfg)}]
+backend http_nodes
+    mode tcp
+    balance roundrobin
+    option tcp-check
+    server worker2 10.0.11.21:80 check inter 2s rise 2 fall 2
+    server worker1 10.0.10.139:80 check backup inter 2s rise 2 fall 2
 
-# Nhan dien Directory Traversal (/etc/passwd, ../..)
-alert http any any -> any any (msg:"ATTACK: Directory Traversal /etc/passwd Detected"; flow:to_server,established; content:"/etc/passwd"; sid:1000003; rev:1;)
-alert http any any -> any any (msg:"ATTACK: Directory Traversal Path Manipulation"; flow:to_server,established; content:"../.."; sid:1000004; rev:1;)
-
-# Nhan dien Cross-Site Scripting (XSS)
-alert http any any -> any any (msg:"ATTACK: XSS Payload Detected"; flow:to_server,established; content:"<script>"; nocase; sid:1000005; rev:1;)
-
-# Nhan dien do quet tep tin he thong nhay cam (.env, .git)
-alert http any any -> any any (msg:"ATTACK: Sensitive File Probe (.env/.git)"; flow:to_server,established; content:".env"; sid:1000006; rev:1;)
+backend https_nodes
+    mode tcp
+    balance roundrobin
+    option tcp-check
+    server worker2 10.0.11.21:443 check inter 2s rise 2 fall 2
+    server worker1 10.0.10.139:443 check backup inter 2s rise 2 fall 2
 \end{lstlisting}
 
-\section{Khởi tạo cụm Upstream Kubernetes v1.31}
-Khởi tạo Control Plane trên Master node và kết nối các Worker nodes qua \texttt{kubeadm}:
-\begin{lstlisting}[language=bash, caption={Lệnh khởi tạo Control Plane và kết nối Worker nodes}]
-# Tren Master Node: khoi tao Control Plane tich hop Audit Policy
-sudo kubeadm init --config /etc/kubernetes/kubeadm-config.yaml
+\textbf{Phân tích cơ chế hoạt động}:
+\begin{itemize}
+    \item \textbf{Tối ưu hóa độ trễ nội vùng}: Ở trạng thái bình thường, Gateway 1 (AZ-a) điều hướng toàn bộ lưu lượng tới Worker 1 (\texttt{10.0.10.139}) cùng đặt tại AZ-a. Tương tự, Gateway 2 (AZ-b) chuyển tiếp tới Worker 2 (\texttt{10.0.11.21}) tại AZ-b. Điều này loại bỏ hoàn toàn chi phí truyền dữ liệu liên vùng (Cross-AZ Data Transfer) và giảm thiểu tối đa độ trễ phản hồi cho người dùng cuối.
+    \item \textbf{Cơ chế dự phòng tức thì}: Tham số kiểm tra sức khỏe \texttt{check inter 2s rise 2 fall 2} liên tục thăm dò kết nối mỗi 2 giây. Nếu một Worker node gặp sự cố (ví dụ Worker 1 sập), HAProxy trên Gateway 1 chỉ mất 4 giây (2 lần thăm dò thất bại) để xác nhận trạng thái DOWN và ngay lập tức kích hoạt máy chủ \texttt{backup} (Worker 2 tại AZ-b) tiếp quản lưu lượng mà không gây gián đoạn dịch vụ.
+\end{itemize}
 
-# Tren Worker 1 va Worker 2: ket noi vao cum
-sudo kubeadm join 10.0.10.10:6443 --token <token> --discovery-token-ca-cert-hash <hash>
+\subsection{Cấu hình hệ thống phát hiện/ngăn chặn xâm nhập Suricata DPI}
+Suricata được triển khai trực tiếp trên Gateway với khả năng chuyển đổi linh hoạt giữa hai chế độ: Chế độ giám sát thụ động qua card mạng (\texttt{af-packet}) và chế độ ngăn chặn xâm nhập thời gian thực (Inline IPS) thông qua Linux Netfilter Queue (\texttt{NFQUEUE}).
+
+\begin{lstlisting}[language=bash, caption={Cấu hình Systemd Drop-in Override khởi động Suricata IPS (/etc/systemd/system/suricata.service.d/override.conf)}]
+[Service]
+ExecStart=
+ExecStart=/usr/bin/suricata -D -q 0 -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid
+\end{lstlisting}
+Tham số \texttt{-q 0} chỉ định Suricata liên kết trực tiếp vào hàng đợi số 0 của IPTables. Mọi gói tin đi qua chuỗi \texttt{FORWARD} đều bị giữ lại để phân tích sâu (Deep Packet Inspection - DPI). Nếu vi phạm luật, gói tin sẽ bị hủy bỏ ngay lập tức tại tầng nhân (\texttt{drop}).
+
+\begin{lstlisting}[language=bash, caption={Tập luật phát hiện và ngăn chặn tấn công thực tế (/etc/suricata/rules/local.rules)}]
+# 1. Ngan chan quet cong TCP SYN tham do ha tang
+drop tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"LOCAL Quet cong TCP SYN"; flags:S,12; flow:stateless; threshold:type both, track by_src, count 30, seconds 10; classtype:attempted-recon; sid:1000001; rev:2;)
+
+# 2. Ngan chan cong cu do quet tu dong noi tieng
+drop http $EXTERNAL_NET any -> $HOME_NET any (msg:"LOCAL Cong cu sqlmap"; flow:established,to_server; http.user_agent; content:"sqlmap"; nocase; classtype:web-application-attack; sid:1000002; rev:2;)
+drop http $EXTERNAL_NET any -> $HOME_NET any (msg:"LOCAL Cong cu Nikto"; flow:established,to_server; http.user_agent; content:"Nikto"; nocase; classtype:web-application-attack; sid:1000003; rev:2;)
+
+# 3. Danh chan tan cong SQL Injection (SQLi)
+drop http $EXTERNAL_NET any -> $HOME_NET any (msg:"LOCAL SQLi UNION SELECT"; flow:established,to_server; http.uri; content:"union"; nocase; content:"select"; nocase; distance:0; classtype:web-application-attack; sid:1000004; rev:2;)
+
+# 4. Danh chan tan cong leo thu muc (Path Traversal)
+drop http $EXTERNAL_NET any -> $HOME_NET any (msg:"LOCAL Path Traversal etc-passwd"; flow:established,to_server; http.uri; content:"etc/passwd"; nocase; classtype:web-application-attack; sid:1000005; rev:2;)
+
+# 5. Danh chan tan cong Cross-Site Scripting (XSS)
+drop http $EXTERNAL_NET any -> $HOME_NET any (msg:"LOCAL XSS script tag"; flow:established,to_server; http.uri; content:"<script"; nocase; classtype:web-application-attack; sid:1000006; rev:2;)
+
+# 6. Danh chan do tim tep tin cau hinh nhay cam
+drop http $EXTERNAL_NET any -> $HOME_NET any (msg:"LOCAL Do file nhay cam"; flow:established,to_server; http.uri; pcre:"/\/\.(env|git\/config)/i"; classtype:attempted-recon; sid:1000007; rev:2;)
 \end{lstlisting}
 
-\section{Triển khai Cilium eBPF và Hubble UI}
-Cài đặt Cilium v1.16.2 chế độ eBPF Kernel Mode và kích hoạt Hubble UI qua Cilium CLI:
-\begin{lstlisting}[language=bash, caption={Lệnh cài đặt Cilium eBPF và Hubble UI}]
+% ==============================================================================
+% 2. KUBERNETES CONTROL-PLANE & AUDITING
+% ==============================================================================
+\section{Khởi tạo cụm Upstream Kubernetes v1.31 và K8s API Auditing}
+
+Cụm Kubernetes được xây dựng dựa trên phiên bản chuẩn Upstream v1.31, bao gồm 1 Master Node (\texttt{10.0.10.10}) quản lý Control Plane và 2 Worker Nodes (\texttt{10.0.10.139}, \texttt{10.0.11.21}) phân bố trên hai vùng sẵn sàng. Môi trường thực thi container sử dụng \texttt{containerd} đồng bộ cgroup driver theo \texttt{SystemdCgroup}.
+
+\subsection{Khởi tạo Control Plane và tham số Kube-apiserver Auditing}
+Control Plane được khởi tạo qua công cụ \texttt{kubeadm}. Để phục vụ phân tích điều tra số và đáp ứng chuẩn tuân thủ an toàn thông tin, máy chủ API Server được tích hợp trực tiếp cơ chế ghi vết kiểm toán (Kubernetes Auditing) thông qua các tham số tĩnh trong manifest:
+
+\begin{lstlisting}[language=yaml, caption={Trích đoạn cấu hình Kube-apiserver tích hợp Auditing (/etc/kubernetes/manifests/kube-apiserver.yaml)}]
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --allow-privileged=true
+    - --audit-log-path=/var/log/kubernetes/audit.log
+    - --audit-log-maxage=7
+    - --audit-log-maxbackup=10
+    - --audit-log-maxsize=100
+    - --audit-policy-file=/etc/kubernetes/audit-policy.yaml
+    - --authorization-mode=Node,RBAC
+    - --service-cluster-ip-range=10.96.0.0/12
+    volumeMounts:
+    - mountPath: /var/log/kubernetes
+      name: audit-log
+    - mountPath: /etc/kubernetes/audit-policy.yaml
+      name: audit-policy
+      readOnly: true
+  volumes:
+  - hostPath:
+      path: /var/log/kubernetes
+      type: DirectoryOrCreate
+    name: audit-log
+  - hostPath:
+      path: /etc/kubernetes/audit-policy.yaml
+      type: File
+    name: audit-policy
+\end{lstlisting}
+
+\subsection{Chính sách kiểm toán phân cấp Kubernetes Audit Policy}
+Tập tin chính sách `/etc/kubernetes/audit-policy.yaml` thiết lập quy tắc phân loại mức độ ghi nhật ký, giúp cân bằng giữa độ chi tiết cần thiết để phát hiện xâm nhập và hiệu năng I/O của đĩa cứng:
+
+\begin{lstlisting}[language=yaml, caption={Chính sách kiểm toán phân cấp (/etc/kubernetes/audit-policy.yaml)}]
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+  # 1. Ghi nhan Metadata cho cac tai nguyen bao mat cao (Secrets, ConfigMaps)
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps"]
+
+  # 2. Ghi nhan toan bo noi dung Request doi voi lenh can thiep container truc tiep (exec)
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["pods/exec"]
+
+  # 3. Ghi nhan ca Request va Response doi voi cac thao tac thay doi vong doi Pods
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["pods"]
+
+  # 4. Mien ghi log doi voi cac yeu cau doc trang thai dinh ky khong mang rui ro
+  - level: None
+    users: ["system:kube-proxy"]
+    verbs: ["watch"]
+    resources:
+      - group: ""
+        resources: ["endpoints", "services"]
+
+  # 5. Mac dinh ghi o muc Metadata cho moi luong du lieu con lai
+  - level: Metadata
+\end{lstlisting}
+
+% ==============================================================================
+% 3. CILIUM CNI & HUBBLE OBSERVABILITY
+% ==============================================================================
+\section{Triển khai Phân hệ Mạng CNI eBPF Cilium và Hubble Observability}
+
+Thay vì sử dụng các giải pháp CNI truyền thống dựa trên cầu nối ảo (veth pairs) và \texttt{iptables/kube-proxy}, dự án triển khai Cilium v1.16.2 hoạt động hoàn toàn ở chế độ Linux Kernel eBPF.
+
+\subsection{Cài đặt Cilium Kernel Mode và cấu hình mạng Overlay VXLAN}
+Cilium được cài đặt trực tiếp qua Cilium CLI, loại bỏ hoàn toàn sự phụ thuộc vào \texttt{kube-proxy}:
+\begin{lstlisting}[language=bash, caption={Lệnh cài đặt Cilium eBPF Kernel Mode}]
 /usr/local/bin/cilium install \
   --version 1.16.2 \
   --set ipam.mode=kubernetes \
@@ -136,42 +285,37 @@ Cài đặt Cilium v1.16.2 chế độ eBPF Kernel Mode và kích hoạt Hubble 
   --set hubble.relay.enabled=true \
   --set hubble.ui.enabled=true \
   --wait=false
+\end{lstlisting}
+Giao thức đường hầm VXLAN đóng gói các gói tin mạng Pod trên cổng UDP 8472. Tại mỗi node, chương trình eBPF được biên dịch và gắn (attach) trực tiếp vào các điểm kết nối trong kernel (XDP và tc), cho phép định tuyến và thực thi chính sách bảo mật với độ trễ micro-giây.
 
-# Chuyen Service Hubble UI sang NodePort tren cong 31235
+\subsection{Kích hoạt Hubble Relay và công khai giao diện Hubble UI}
+Hubble thu thập toàn bộ dữ liệu luồng mạng (flow telemetry) do các chương trình eBPF ghi nhận. Dịch vụ Hubble UI được công khai qua NodePort \texttt{31235} để cung cấp giao diện biểu đồ phụ thuộc (Service Map) thời gian thực:
+\begin{lstlisting}[language=bash, caption={Cấu hình NodePort 31235 cho giao diện Hubble UI}]
 kubectl patch service hubble-ui -n kube-system \
   -p '{"spec": {"type": "NodePort", "ports": [{"name": "http", "port": 80, "targetPort": 8081, "nodePort": 31235}]}}'
 \end{lstlisting}
 
-\section{Triển khai Ingress-NGINX và Rancher Server}
-\subsection{Ingress-NGINX Controller}
-Triển khai Ingress-NGINX ở chế độ Multi-AZ Active-Active với 2 Replicas trên cả hai Worker node (\texttt{10.0.10.139} và \texttt{10.0.11.21}) sử dụng nhãn \texttt{ingress-ready: "true"} và \texttt{hostNetwork: true}, kết hợp khai báo Ingress manifest:
-\begin{lstlisting}[language=yaml, caption={Khai báo Ingress cho ứng dụng Online Boutique}]
+% ==============================================================================
+% 4. INGRESS-NGINX & RANCHER
+% ==============================================================================
+\section{Triển khai Ingress-NGINX Multi-AZ và Rancher Management Server}
+
+\subsection{Kiến trúc Ingress-NGINX Controller chế độ HostNetwork}
+Ingress-NGINX được triển khai theo mô hình Multi-AZ Active-Active với 2 bản sao (Replicas) ghim trực tiếp trên hai Worker nodes (\texttt{10.0.10.139} và \texttt{10.0.11.21}). Controller được cấu hình tham số \texttt{hostNetwork: true}, cho phép tiến trình NGINX liên kết trực tiếp vào cổng 80 (HTTP) và cổng 443 (HTTPS) của giao diện mạng máy ảo Worker:
+
+\begin{lstlisting}[language=yaml, caption={Khai báo Ingress điều phối lưu lượng (/k8s/02-ingress.yaml)}]
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: boutique-ingress
   namespace: online-boutique
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/limit-rps: "50"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - boutique.lab
-      secretName: boutique-tls
   rules:
-    - host: boutique.lab
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 80
     - http:
         paths:
           - path: /
@@ -183,9 +327,47 @@ spec:
                   number: 80
 \end{lstlisting}
 
-\subsection{Rancher Management Server}
-Cài đặt Rancher Server vào namespace \texttt{cattle-system} qua Helm, gắn Service NodePort 30443:
-\begin{lstlisting}[language=bash, caption={Lệnh triển khai Rancher Server bằng Helm}]
+\subsection{Cấu hình NGINX thực tế bên trong Pod Controller}
+Bên trong Pod Ingress Controller, tệp cấu hình `/etc/nginx/nginx.conf` được sinh tự động. Thay vì sử dụng danh sách upstream tĩnh của NGINX thông thường, Ingress-NGINX sử dụng hệ thống cân bằng tải động dựa trên ngôn ngữ Lua (OpenResty):
+
+\begin{lstlisting}[language=bash, caption={Trích đoạn cấu hình NGINX thực tế trong Pod (/etc/nginx/nginx.conf)}]
+# Gioi han tan suat yeu cau (Rate Limiting 50 req/s, burst 250)
+limit_req_zone $limit_zone zone=online-boutique_boutique-ingress_rps:5m rate=50r/s;
+
+# Server block tiep nhan luong truy cap truc tiep theo IP
+server {
+    server_name _ ;
+    listen 80 default_server reuseport backlog=4096;
+    listen 443 default_server reuseport backlog=4096 ssl;
+
+    location / {
+        set $namespace      "online-boutique";
+        set $ingress_name   "boutique-ingress";
+        set $service_name   "frontend";
+        set $service_port   "80";
+        set $proxy_upstream_name "online-boutique-frontend-80";
+
+        # Dieu phoi dong qua module Lua truc tiep toi Endpoint IP cua Pod
+        rewrite_by_lua_block {
+            lua_ingress.rewrite({
+                force_ssl_redirect = false,
+                ssl_redirect = false
+            })
+            balancer.rewrite()
+            plugins.run()
+        }
+
+        limit_req zone=online-boutique_boutique-ingress_rps burst=250 nodelay;
+        client_max_body_size 10m;
+        proxy_pass http://upstream_balancer;
+    }
+}
+\end{lstlisting}
+Nhờ module \texttt{balancer.rewrite()}, NGINX theo dõi các Endpoint Pod do Kubernetes API cung cấp và chuyển tiếp gói tin trực tiếp tới IP của Pod \texttt{frontend} trong mạng Cilium, loại bỏ hoàn toàn các bước nhảy trung gian (NAT hop) của Kube-Proxy.
+
+\subsection{Triển khai Rancher Management Server}
+Rancher Server v2.9 được triển khai bằng Helm vào namespace \texttt{cattle-system}, cung cấp bảng điều khiển tập trung để quản trị cụm, giám sát tài nguyên và phân quyền truy cập:
+\begin{lstlisting}[language=bash, caption={Lệnh cài đặt Rancher Management Server}]
 helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
 helm repo update
 
@@ -196,10 +378,39 @@ helm install rancher rancher-prime/rancher \
   --set bootstrapPassword=AdminNCSProject2026! \
   --set replicas=1
 \end{lstlisting}
+Service của Rancher lắng nghe trên cổng NodePort \texttt{30443} của Master node, được Gateway chuyển tiếp an toàn ra ngoài qua cổng \texttt{7443}.
 
-\section{Triển khai Google Online Boutique và Network Policies}
-Ứng dụng Online Boutique được triển khai trong namespace \texttt{online-boutique}. Áp dụng chính sách cách ly Zero-Trust cho \texttt{paymentservice}:
-\begin{lstlisting}[language=yaml, caption={Chính sách NetworkPolicy Zero-Trust bảo vệ PaymentService}]
+% ==============================================================================
+% 5. ONLINE BOUTIQUE & ZERO-TRUST POLICIES
+% ==============================================================================
+\section{Triển khai Ứng dụng Google Online Boutique và Chính sách Zero-Trust}
+
+\subsection{Danh mục Microservices của ứng dụng Online Boutique}
+Ứng dụng thương mại điện tử microservices bao gồm 11 dịch vụ nghiệp vụ chính và 1 service sinh tải (\texttt{loadgenerator}), vận hành trong namespace \texttt{online-boutique}:
+\begin{itemize}
+    \item \texttt{frontend}: Cung cấp giao diện web cho khách hàng (HTTP port 80).
+    \item \texttt{cartservice} \& \texttt{redis-cart}: Quản lý giỏ hàng và lưu trữ phân tán Redis (TCP port 6379).
+    \item \texttt{paymentservice}: Xử lý giao dịch thanh toán thẻ (gRPC TCP port 50051).
+    \item \texttt{checkoutservice}: Điều phối quy trình đặt hàng, liên lạc với các dịch vụ khác.
+    \item \texttt{productcatalogservice}, \texttt{currencyservice}, \texttt{emailservice}, \texttt{shippingservice}, \texttt{recommendationservice}, \texttt{adservice}.
+\end{itemize}
+
+\subsection{Thiết lập chính sách cách ly mạng Zero-Trust (k8s/04-network-policies.yaml)}
+Mô hình Zero-Trust quy định không tin cậy bất kỳ luồng giao tiếp nào, kể cả trong cùng một mạng nội bộ. Hệ thống áp dụng nguyên tắc chặn toàn bộ (Default Deny) và chỉ mở các kênh liên lạc tối thiểu được cấp phép:
+
+\begin{lstlisting}[language=yaml, caption={Chính sách Default Deny toàn bộ Inbound trong namespace online-boutique}]
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all-ingress
+  namespace: online-boutique
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+\end{lstlisting}
+
+\begin{lstlisting}[language=yaml, caption={Chính sách Zero-Trust bảo vệ tuyệt đối cổng thanh toán PaymentService}]
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -213,7 +424,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Chi chap nhan ket noi den tu CheckoutService qua cong gRPC 50051
+    # Chi duy nhat CheckoutService duoc phep goi toi qua cong gRPC 50051
     - from:
         - podSelector:
             matchLabels:
@@ -232,8 +443,7 @@ spec:
           port: 53
 \end{lstlisting}
 
-Áp dụng CiliumNetworkPolicy cho phép Ingress host traffic tới \texttt{frontend}:
-\begin{lstlisting}[language=yaml, caption={Chính sách CiliumNetworkPolicy cho phép Ingress host traffic tới Frontend}]
+\begin{lstlisting}[language=yaml, caption={Chính sách CiliumNetworkPolicy mở luồng Ingress Host tới Frontend Pod}]
 apiVersion: "cilium.io/v2"
 kind: CiliumNetworkPolicy
 metadata:
@@ -253,22 +463,240 @@ spec:
               protocol: TCP
 \end{lstlisting}
 
-\section{Triển khai Wazuh SIEM và tích hợp Agent}
-Wazuh SIEM được cài đặt trên máy chủ \texttt{10.0.20.10} trong Management Subnet:
+% ==============================================================================
+% 6. WAZUH SIEM
+% ==============================================================================
+\section{Triển khai Phân hệ Giám sát An ninh Wazuh SIEM}
+
+Hệ thống quản lý thông tin và sự kiện an ninh (SIEM) đóng vai trò trung tâm phân tích dữ liệu, được cài đặt độc lập trên máy chủ \texttt{10.0.20.10} trong Management Subnet.
+
+\subsection{Kiến trúc và Luồng tiếp nhận Log trong Wazuh SIEM}
+Quy trình thu thập, tiếp nhận và phân tích log trong hệ thống tuân theo mô hình 5 giai đoạn khép kín:
 \begin{enumerate}
-    \item \textbf{Wazuh Manager \& Indexer}: Vận hành công cụ tương quan và OpenSearch Indexer, cung cấp web Dashboard trên cổng 443.
-    \item \textbf{Wazuh Agents}: Đăng ký 5 Agent cho Gateway 1, Gateway 2, Master, Worker 1, Worker 2. Cấu hình thu thập log Suricata và K8s Audit:
-\begin{lstlisting}[language=xml, caption={Khai báo nguồn log trong cấu hình Wazuh Agent}]
-<!-- Tren Gateway: Thu thap log Suricata eve.json -->
+    \item \textbf{Đọc stream log cục bộ (\texttt{<localfile>})}: Wazuh Agent chạy trên từng máy chủ liên tục theo dõi các tệp tin nhật ký chuyên biệt dạng JSON.
+    \item \textbf{Truyền dữ liệu mã hóa (\texttt{<client>})}: Agent đóng gói các sự kiện và chuyển tiếp qua kết nối TCP cổng 1514 được mã hóa đối xứng (AES/HMAC).
+    \item \textbf{Tiếp nhận và xếp hàng (\texttt{<remote>})}: Tiến trình \texttt{wazuh-remoted} trên Manager lắng nghe trên cổng 1514, xác thực định danh Agent qua \texttt{client.keys} và đẩy sự kiện vào hàng đợi bộ nhớ.
+    \item \textbf{Phân tích cú pháp và mở rộng bộ đệm (\texttt{wazuh-analysisd})}: Sự kiện JSON được bóc tách trường thông tin. Cấu hình \texttt{decoder\_order\_size=1024} đảm bảo giải mã trọn vẹn các cấu trúc JSON lồng sâu.
+    \item \textbf{So khớp luật tương quan (\texttt{local\_rules.xml}) và lập chỉ mục}: Công cụ quy tắc đối chiếu sự kiện, sinh cảnh báo và lưu vào \texttt{alerts.json}. Filebeat đồng bộ dữ liệu vào OpenSearch Indexer để hiển thị trên Wazuh Dashboard.
+\end{enumerate}
+
+\subsection{Cấu hình thu thập log trên các máy chủ Agent (/var/ossec/etc/ossec.conf)}
+Trên mỗi Agent, khối \texttt{<client>} chỉ định máy chủ quản lý và các khối \texttt{<localfile>} định nghĩa nguồn log cần giám sát:
+
+\begin{lstlisting}[language=xml, caption={Cấu hình kết nối Agent tới Manager (/var/ossec/etc/ossec.conf)}]
+  <client>
+    <server>
+      <address>10.0.20.10</address>
+      <port>1514</port>
+      <protocol>tcp</protocol>
+    </server>
+    <notify_time>20</notify_time>
+    <time-reconnect>60</time-reconnect>
+    <auto_restart>yes</auto_restart>
+  </client>
+\end{lstlisting}
+
+\begin{lstlisting}[language=xml, caption={Khai báo các nguồn log cục bộ trên Agent (/var/ossec/etc/ossec.conf)}]
+<!-- Tren Gateway 1 va Gateway 2: Thu thap log Suricata DPI eve.json -->
 <localfile>
   <log_format>json</log_format>
   <location>/var/log/suricata/eve.json</location>
 </localfile>
 
-<!-- Tren Master: Thu thap K8s API Server audit.log -->
+<!-- Tren Master Node: Thu thap K8s API Server audit.log -->
 <localfile>
   <log_format>json</log_format>
   <location>/var/log/kubernetes/audit.log</location>
 </localfile>
+
+<!-- Tren Master, Worker 1 va Worker 2: Thu thap Falco Runtime events.json -->
+<localfile>
+  <log_format>json</log_format>
+  <location>/var/log/falco/events.json</location>
+</localfile>
 \end{lstlisting}
-\end{enumerate}
+
+\subsection{Cấu hình tiếp nhận kết nối trên Wazuh Manager (/var/ossec/etc/ossec.conf)}
+Trên máy chủ SIEM Manager (\texttt{10.0.20.10}), tiến trình \texttt{wazuh-remoted} được cấu hình tiếp nhận kết nối mạng an toàn từ toàn bộ các Agent trong hạ tầng:
+
+\begin{lstlisting}[language=xml, caption={Cấu hình tiếp nhận kết nối bảo mật trên Wazuh Manager}]
+  <remote>
+    <connection>secure</connection>
+    <port>1514</port>
+    <protocol>tcp</protocol>
+    <queue_size>131072</queue_size>
+  </remote>
+\end{lstlisting}
+Tham số \texttt{queue\_size: 131072} là yếu tố kỹ thuật then chốt, cung cấp hàng đợi đủ lớn để hấp thụ các đợt bùng nổ log (log bursts) khi hệ thống hứng chịu tấn công DoS hoặc quét cổng cường độ cao mà không làm rơi rụng (drop) dữ liệu kiểm toán.
+
+\subsection{Mở rộng bộ đệm giải mã JSON (/var/ossec/etc/local_internal_options.conf)}
+Các bản tin JSON sinh ra từ Suricata DPI và Kubernetes API Audit thường chứa hàng chục trường siêu dữ liệu lồng ghép phức tạp. Nếu sử dụng cấu hình mặc định, bộ giải mã JSON của Wazuh sẽ báo lỗi \textit{"Too many fields for JSON decoder"} và bỏ qua sự kiện. Tệp cấu hình nội bộ được tối ưu hóa như sau:
+
+\begin{lstlisting}[language=bash, caption={Mở rộng bộ đệm giải mã JSON (/var/ossec/etc/local_internal_options.conf)}]
+# Tang kich thuoc bo nho phan tich truong JSON len 1024
+analysisd.decoder_order_size=1024
+\end{lstlisting}
+
+\subsection{Tập luật tương quan an ninh tùy biến (/var/ossec/etc/rules/local_rules.xml)}
+Bộ luật tương quan chuyên biệt được thiết lập nhằm phân loại chính xác các mối đe dọa từ mạng biên, cụm điều phối container và hành vi runtime:
+
+\begin{lstlisting}[language=xml, caption={Trích đoạn bộ luật tương quan chuyên biệt (/var/ossec/etc/rules/local_rules.xml)}]
+<!-- NHOM 1: QUY TAC PHAT HIEN SURICATA DPI -->
+<group name="ids,suricata,">
+  <!-- Phat hien moi de doa nghiem trong Severity 1 -->
+  <rule id="100100" level="10">
+    <if_sid>86601</if_sid>
+    <field name="alert.severity">^1$</field>
+    <description>Suricata: High Severity Threat - $(alert.signature) [$(src_ip) -> $(dest_ip)]</description>
+    <group>ids,suricata,attack,</group>
+  </rule>
+
+  <!-- Phat hien tan cong ung dung Web (SQLi, XSS, Path Traversal) -->
+  <rule id="100101" level="12">
+    <if_sid>86601</if_sid>
+    <field name="alert.category" type="pcre2">Web Application Attack|Exploit|Command and Control</field>
+    <description>Suricata: Web Application Attack - $(alert.signature) [$(src_ip) -> $(dest_ip):$(dest_port)]</description>
+    <group>ids,suricata,web_attack,</group>
+  </rule>
+
+  <!-- Ghi nhan Suricata IPS da chu dong chan (Drop/Block) goi tin -->
+  <rule id="100102" level="8">
+    <if_sid>86601</if_sid>
+    <field name="alert.action" type="pcre2">blocked|dropped</field>
+    <description>Suricata IPS: Blocked Malicious Traffic - $(alert.signature) from $(src_ip)</description>
+    <group>ids,suricata,ips_blocked,</group>
+  </rule>
+</group>
+
+<!-- NHOM 2: QUY TAC PHAT HIEN KUBERNETES API AUDITING -->
+<group name="k8s,audit,">
+  <!-- Phat hien hanh vi can thiep vao container qua lenh exec -->
+  <rule id="110001" level="9">
+    <decoded_as>json</decoded_as>
+    <field name="stage">ResponseComplete</field>
+    <field name="verb">create</field>
+    <field name="requestURI" type="pcre2">/pods/[^/]+/exec</field>
+    <description>K8s Audit: Can thiep truc tiep vao container qua kubectl exec [User: $(user.username)]</description>
+    <group>k8s,audit,container_exec,</group>
+  </rule>
+</group>
+
+<!-- NHOM 3: QUY TAC PHAT HIEN FALCO CONTAINER RUNTIME -->
+<group name="falco,container_runtime,">
+  <!-- Phat hien vi pham tieu chuan Runtime muc Warning/Notice -->
+  <rule id="120001" level="7">
+    <decoded_as>json</decoded_as>
+    <field name="priority" type="pcre2">Warning|Notice</field>
+    <field name="output">\.+</field>
+    <description>Falco Runtime Alert [$(priority)]: $(rule) [Container: $(output_fields.container.name)]</description>
+    <group>falco,runtime_security,</group>
+  </rule>
+
+  <!-- Phat hien hanh vi nguy hiem cao (Shell Injection, Doc file nhay cam) -->
+  <rule id="120002" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="priority" type="pcre2">Error|Critical|Alert|Emergency</field>
+    <field name="output">\.+</field>
+    <description>Falco High Threat Security Violation [$(priority)]: $(rule) [Container: $(output_fields.container.name)]</description>
+    <group>falco,runtime_security,high_threat,</group>
+  </rule>
+</group>
+\end{lstlisting}
+
+% ==============================================================================
+% 7. FALCO RUNTIME SECURITY & FALCOSIDEKICK UI
+% ==============================================================================
+\section{Triển khai Phân hệ Falco Container Runtime Security \& Falcosidekick UI}
+
+Falco là công cụ tiêu chuẩn giám sát an ninh mức nhân (Kernel-level Runtime Security) trong môi trường điện toán đám mây Kubernetes. Quá trình triển khai được tự động hóa hoàn toàn thông qua Ansible Role \texttt{falco}.
+
+\subsection{Kiến trúc giám sát mức nhân với Driver Modern eBPF}
+Thay vì biên dịch Kernel Module truyền thống vốn dễ gây mất ổn định cho máy chủ và phụ thuộc vào phiên bản nhân Linux, hệ thống lựa chọn kiến trúc \texttt{modern\_ebpf}. Trình điều khiển này tận dụng công nghệ eBPF CO-RE (Compile Once -- Run Everywhere) tích hợp sẵn trong nhân Linux 6.x của Ubuntu 24.04/22.04, tự động bám bắt các lời gọi hệ thống (syscalls) với chi phí tài nguyên tiêu thụ dưới 2\% CPU.
+
+\subsection{Cấu hình DaemonSet Falco và chuyển tiếp sự kiện (/etc/falco/falco.yaml)}
+Falco được triển khai dưới dạng DaemonSet trên toàn bộ các node trong cụm (Master, Worker 1, Worker 2). Tệp cấu hình thực tế kích hoạt song song hai kênh đẩy dữ liệu: ghi nhật ký tệp cục bộ phục vụ Wazuh Agent và chuyển tiếp HTTP phục vụ Falcosidekick:
+
+\begin{lstlisting}[language=yaml, caption={Trích đoạn cấu hình thực tế của Falco DaemonSet (/etc/falco/falco.yaml)}]
+# Ghi nhat ky su kien ra tep tin cuc bo cho Wazuh Agent thu thap
+file_output:
+  enabled: true
+  filename: /var/log/falco/events.json
+  keep_alive: false
+
+# Chuyen tiep su kien qua HTTP toi Falcosidekick de hien thi Web UI
+http_output:
+  enabled: true
+  url: "http://falco-falcosidekick:2801/"
+
+# Dinh dang du lieu dau ra JSON chuan hoa
+json_output: true
+log_level: info
+log_stderr: true
+log_syslog: true
+output_timeout: 2000
+\end{lstlisting}
+
+\subsection{Cấu hình Falcosidekick và Falcosidekick Web UI}
+Falcosidekick đóng vai trò là cổng định tuyến sự kiện (Event Fan-out Switch). Dịch vụ Falcosidekick Web UI đi kèm được cấu hình sử dụng Service NodePort \texttt{31802} để cung cấp giao diện trực quan hóa thời gian thực cho các chuyên viên vận hành an ninh (SOC):
+
+\begin{lstlisting}[language=yaml, caption={Khai báo thông số Helm Values cho Falco và Falcosidekick}]
+driver:
+  kind: modern_ebpf
+
+falcosidekick:
+  enabled: true
+  webui:
+    enabled: true
+    service:
+      type: NodePort
+      nodePort: 31802
+    redis:
+      storageEnabled: false  # Su dung luu tru tam thoi ephemeral, toi uu cho cum
+\end{lstlisting}
+
+\subsection{Bộ luật tùy biến và định dạng bản tin cảnh báo Runtime thực tế}
+Bộ luật giám sát hành vi bất thường trong vùng chứa được khai báo trong \texttt{rules-custom.yaml}:
+\begin{lstlisting}[language=yaml, caption={Quy tắc phát hiện hành vi Runtime độc hại trong container}]
+customRules:
+  rules-custom.yaml: |-
+    # 1. Phat hien khoi chay tien trinh Shell tuong tac trong container san xuat
+    - rule: Unauthorized shell spawned in container
+      desc: Phat hien shell duoc sinh ra ben trong container san xuat
+      condition: >
+        spawned_process and container and
+        proc.name in (bash, sh, zsh, dash, ash) and
+        not proc.pname in (containerd-shim, dockerd, systemd)
+      output: "Canh bao Runtime: Phat hien shell trong container (user=%user.name command=%proc.cmdline container_name=%container.name)"
+      priority: WARNING
+
+    # 2. Phat hien truy cap doc cac tep tin nhay cam he thong
+    - rule: Read sensitive file untrusted
+      desc: Phat hien hanh vi doc tap tin mat khau/cau hinh nhay cam
+      condition: >
+        open_read and container and
+        (fd.name in (/etc/shadow, /etc/sudoers, /etc/pam.conf))
+      output: "Canh bao Runtime: Doc tap tin nhay cam (user=%user.name file=%fd.name command=%proc.cmdline)"
+      priority: ERROR
+\end{lstlisting}
+
+Khi một tiến trình tương tác bất hợp pháp xuất hiện trong container, Falco chặn bắt tại tầng nhân và xuất ngay một bản tin JSON cấu trúc đầy đủ vào `/var/log/falco/events.json`:
+
+\begin{lstlisting}[language=bash, caption={Bản tin JSON thực tế ghi nhận từ /var/log/falco/events.json}]
+{
+  "hostname": "ip-10-0-10-139",
+  "output": "10:14:22.518391024: Warning Canh bao Runtime: Phat hien shell trong container (user=root command=sh container_name=frontend)",
+  "priority": "Warning",
+  "rule": "Unauthorized shell spawned in container",
+  "time": "2026-11-07T02:00:22.518391024Z",
+  "output_fields": {
+    "container.id": "4b684cb68019",
+    "container.name": "frontend",
+    "k8s.ns.name": "online-boutique",
+    "k8s.pod.name": "frontend-7cbcfffc54-c9m8x",
+    "proc.cmdline": "sh",
+    "proc.name": "sh",
+    "user.name": "root"
+  }
+}
+\end{lstlisting}
+Bản tin này ngay lập tức được Wazuh Agent đọc, chuyển tiếp về Manager qua cổng 1514, kích hoạt Luật 120001 (mức độ 7) và đẩy lên biểu đồ phân tích của cả Wazuh SIEM lẫn Falcosidekick Web UI.

@@ -1,0 +1,64 @@
+---
+# Role: falco — Cài đặt Falco Container Runtime Security & Falcosidekick UI
+
+- name: Kiểm tra Helm binary đã tồn tại trên Master node chưa
+  ansible.builtin.command: which helm
+  register: helm_check
+  failed_when: false
+  changed_when: false
+
+- name: Tải và cài đặt Helm v3 nếu chưa có
+  ansible.builtin.shell: |
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  when: helm_check.rc != 0
+  changed_when: true
+
+- name: Thêm và cập nhật Helm repository falcosecurity
+  ansible.builtin.shell: |
+    helm repo add falcosecurity https://falcosecurity.github.io/charts
+    helm repo update
+  changed_when: false
+
+- name: Tạo namespace falco kèm nhãn Pod Security Standards Privileged
+  ansible.builtin.shell: |
+    kubectl create namespace {{ falco_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+    kubectl label namespace {{ falco_namespace }} pod-security.kubernetes.io/enforce=privileged --overwrite
+  changed_when: false
+
+- name: Tạo file values cho Falco từ template
+  ansible.builtin.template:
+    src: falco-values.yaml.j2
+    dest: /tmp/falco-values.yaml
+    mode: "0644"
+
+- name: Dọn dẹp StatefulSet và PVC Redis cũ nếu tồn tại
+  ansible.builtin.shell: |
+    if kubectl get pvc -n {{ falco_namespace }} | grep -q 'Pending'; then
+      kubectl delete statefulset falco-falcosidekick-ui-redis -n {{ falco_namespace }} --ignore-not-found=true
+      kubectl delete pvc -n {{ falco_namespace }} --all --ignore-not-found=true
+    fi
+  changed_when: false
+
+- name: Triển khai Falco qua
+  ansible.builtin.shell: |
+    helm upgrade --install falco falcosecurity/falco \
+      --namespace {{ falco_namespace }} \
+      --values /tmp/falco-values.yaml \
+      --wait=false
+  changed_when: true
+
+- name: Chờ Falcosidekick và Falcosidekick Web UI Deployment sẵn sàng
+  ansible.builtin.shell: |
+    kubectl rollout status deployment/falco-falcosidekick -n {{ falco_namespace }} --timeout=300s || true
+    kubectl rollout status deployment/falco-falcosidekick-ui -n {{ falco_namespace }} --timeout=300s || true
+  changed_when: false
+
+- name: Chờ Falco DaemonSet khởi động trên các nodes trong cụm
+  ansible.builtin.shell: |
+    kubectl rollout status daemonset/falco -n {{ falco_namespace }} --timeout=300s || true
+  changed_when: false
+
+- name: Dọn dẹp file values tạm thời
+  ansible.builtin.file:
+    path: /tmp/falco-values.yaml
+    state: absent

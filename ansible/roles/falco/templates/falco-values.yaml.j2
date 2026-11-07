@@ -1,0 +1,72 @@
+# Driver eBPF hiện đại (modern_ebpf)
+driver:
+  kind: modern_ebpf
+
+# Thiết lập thu thập log Falco
+falco:
+  json_output: true
+  json_include_output_property: true
+  file_output:
+    enabled: true
+    keep_alive: false
+    filename: /var/log/falco/events.json
+  http_output:
+    enabled: true
+    url: "http://falco-falcosidekick:2801/"
+  syslog_output:
+    enabled: true
+  stdout_output:
+    enabled: true
+
+# Mount thư mục /var/log/falco từ host node vào Pod để Wazuh Agent trên host có thể đọc
+mounts:
+  volumes:
+    - name: falco-events-dir
+      hostPath:
+        path: /var/log/falco
+        type: DirectoryOrCreate
+  volumeMounts:
+    - mountPath: /var/log/falco
+      name: falco-events-dir
+
+# Tích hợp Falcosidekick chuyển tiếp và Web UI
+falcosidekick:
+  enabled: true
+  webui:
+    enabled: true
+    redis:
+      storageEnabled: false
+    service:
+      type: NodePort
+      nodePort: {{ falcosidekick_ui_nodeport | default(31802) }}
+
+# Bộ luật tùy biến giám sát container runtime
+customRules:
+  rules-custom.yaml: |-
+    - rule: Unauthorized shell spawned in container
+      desc: Phát hiện shell tương tác được tạo bên trong container
+      condition: >
+        spawned_process and container and
+        proc.name in (bash, sh, zsh, dash, ash) and
+        not proc.pname in (containerd-shim, dockerd, systemd)
+      output: "Cảnh báo Runtime: Phát hiện shell trong container (user=%user.name command=%proc.cmdline parent=%proc.pname container_id=%container.id container_name=%container.name image=%container.image.repository)"
+      priority: WARNING
+      tags: [security, container, execution, mitre_execution]
+
+    - rule: Read sensitive file untrusted
+      desc: Phát hiện đọc tập tin nhạy cảm của hệ điều hành
+      condition: >
+        open_read and container and
+        (fd.name in (/etc/shadow, /etc/sudoers, /etc/pam.conf) or fd.name startswith /etc/security/)
+      output: "Cảnh báo Runtime: Đọc tập tin nhạy cảm trong container (user=%user.name file=%fd.name command=%proc.cmdline container_id=%container.id container_name=%container.name image=%container.image.repository)"
+      priority: ERROR
+      tags: [security, container, filesystem, mitre_credential_access]
+
+    - rule: Write below binary dir in container
+      desc: Phát hiện ghi vào thư mục nhị phân hệ thống
+      condition: >
+        open_write and container and
+        (fd.name startswith /bin/ or fd.name startswith /sbin/ or fd.name startswith /usr/bin/ or fd.name startswith /usr/sbin/)
+      output: "Cảnh báo Runtime: Ghi file vào thư mục nhị phân trong container (user=%user.name file=%fd.name command=%proc.cmdline container_name=%container.name)"
+      priority: CRITICAL
+      tags: [security, container, persistence, mitre_persistence]

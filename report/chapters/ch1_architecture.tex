@@ -11,7 +11,7 @@ Hệ thống được triển khai trên AWS. Kiến trúc đáp ứng tính s�
     \label{fig:architecture_diagram}
 \end{figure}
 
-Lưu lượng Internet đi vào được tiếp nhận bởi AWS Network Load Balancer Layer 4, phân bổ tải tới Gateway 1 và Gateway 2. Tại đây, gói tin được kiểm tra qua Suricata IDS/IPS trước khi chuyển tiếp qua bộ cân bằng tải HAProxy Layer 4 vào cụm Kubernetes nội bộ hoặc chuyển tiếp DNAT vào máy chủ Wazuh SIEM.
+Lưu lượng Internet đi vào được tiếp nhận bởi AWS Network Load Balancer Layer 4, phân bổ tải tới Gateway 1 và Gateway 2. Tại đây, gói tin được kiểm tra qua Suricata IDS/IPS trước khi chuyển tiếp qua bộ cân bằng tải HAProxy Layer 4 vào cụm Kubernetes nội bộ hoặc chuyển tiếp DNAT vào máy chủ Wazuh SIEM. Bên trong cụm Kubernetes, toàn bộ các Pod và Container được bảo vệ và giám sát an ninh runtime thời gian thực bằng Falco eBPF kết hợp giao diện Falcosidekick UI.
 
 \section{Các service ứng dụng triển khai}
 Ứng dụng thương mại điện tử Google Online Boutique gồm 11 microservices kết hợp cùng service sinh tải \texttt{loadgenerator}. Các service được đóng gói dưới dạng container, vận hành trong namespace \texttt{online-boutique} trên cụm Kubernetes:
@@ -97,6 +97,7 @@ Hệ thống sử dụng các bảng định tuyến tách biệt để kiểm s
         \textbf{Wazuh SIEM Dashboard} & \textbf{8443} & HTTPS & \texttt{10.0.20.10:443} & IPTables DNAT chuyển tiếp tới máy chủ SIEM SOC \\
         \textbf{HAProxy Stats} & \textbf{8404} & HTTP & Trực tiếp tại Gateway & Thống kê phiên kết nối và trạng thái Health Check \\
         \textbf{Hubble UI} & \textbf{31235} & HTTP & \texttt{10.0.10.10:31235} & Quan sát trực quan luồng mạng eBPF \\
+        \textbf{Falcosidekick UI} & \textbf{31802} & HTTP & \texttt{10.0.10.10:31802} & Bảng điều khiển giám sát cảnh báo Runtime Security Falco \\
         \textbf{SSH Bastion} & \textbf{22} & SSH & Trực tiếp tại Gateway & Quản trị hệ thống qua SSH Agent Forwarding \\
         \bottomrule
     \end{tabularx}

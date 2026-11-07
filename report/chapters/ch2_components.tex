@@ -25,6 +25,8 @@
         \textbf{Online Boutique} & Google Demo 12 Services & Ứng dụng thương mại điện tử đa ngôn ngữ microservices \\
         \textbf{Metrics-Server \& HPA} & K8s HPA v2 & Thu thập metrics Kubelet, tự động co giãn Pod theo tải CPU \\
         \textbf{Network Policies} & Zero-Trust \& Cilium NetPol & Cô lập vi dịch vụ nội bộ, bảo vệ tuyệt đối cổng thanh toán \\
+        \textbf{Falco Runtime Security} & Falco modern\_ebpf & Giám sát lời gọi hệ thống (Syscalls) bên trong container theo thời gian thực \\
+        \textbf{Falcosidekick \& UI} & Falcosidekick v2.28+ & Daemon chuyển tiếp cảnh báo và portal web trực quan hóa an ninh runtime \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -52,13 +54,44 @@ Cụm Kubernetes v1.31 sử dụng Containerd runtime SystemdCgroup. Hai Worker 
 Cilium v1.16.2 hoạt động ở chế độ eBPF Kernel Mode. Mạng Pod giao tiếp qua VXLAN cổng 8472/UDP trên dải CIDR \texttt{10.244.0.0/16}.
 
 \subsection{Ingress-NGINX Controller}
-Ingress-NGINX được nâng cấp triển khai Multi-AZ Active-Active trên cả 2 Worker node (Worker 1 và Worker 2) với \texttt{hostNetwork: true}, tiếp nhận trực tiếp lưu lượng từ HAProxy tại cổng 80 (HTTP) và cổng 443 (HTTPS). Controller thực hiện kết thúc mã hóa TLS qua chứng chỉ \texttt{boutique-tls}, chuyển hướng HTTP sang HTTPS, áp dụng rate limiting 50 req/s, giúp giải phóng hoàn toàn tài nguyên Control Plane trên Master node.
+Ingress-NGINX được nâng cấp triển khai Multi-AZ Active-Active trên cả 2 Worker node (Worker 1 và Worker 2) với \texttt{hostNetwork: true}, tiếp nhận trực tiếp lưu lượng từ HAProxy tại cổng 80 (HTTP) và cổng 443 (HTTPS). Controller tiếp nhận và điều phối lưu lượng trực tiếp tới các Service trong cụm, áp dụng rate limiting 50 req/s, giúp giải phóng hoàn toàn tài nguyên Control Plane trên Master node.
 
 \subsection{Rancher Management Server}
 Rancher Server v2.9 được triển khai trong namespace \texttt{cattle-system}, cung cấp giao diện web trực quan để quản trị cụm, phân quyền RBAC và giám sát tài nguyên. Rancher lắng nghe trên Service NodePort \texttt{30443} và được Gateway chuyển tiếp qua cổng công khai 7443 (HTTPS).
 
 \subsection{Wazuh SIEM \& XDR}
 Wazuh SIEM chạy trong Management Subnet, bao gồm Wazuh Manager, OpenSearch Indexer và Wazuh Dashboard cổng 8443 (HTTPS). Năm Wazuh Agents được cài đặt trên Gateway 1, Gateway 2, Master, Worker 1 và Worker 2 để thu thập log Suricata \texttt{eve.json}, K8s API Server \texttt{audit.log}.
+
+\subsection{Falco Cloud-Native Runtime Security và Falcosidekick UI}
+Nhằm hoàn thiện mô hình phòng thủ theo chiều sâu (Defense-in-Depth), hệ thống tích hợp công cụ bảo mật nguồn mở chuẩn Cloud Native Computing Foundation (CNCF) là \textbf{Falco} để đảm nhiệm vai trò Container Runtime Security.
+
+\subsubsection{Kiến trúc phân tầng của Falco}
+Falco hoạt động đồng thời trên hai phân vùng:
+\begin{itemize}
+    \item \textbf{Phân vùng Kernel (Kernel Space)}: Sử dụng trình điều khiển \texttt{modern\_ebpf} probe gắn trực tiếp vào các điểm đón (tracepoints) của nhân Linux. Mọi lời gọi hệ thống (system calls - syscalls) phát sinh từ các tiến trình bên trong container được sao chép vào cấu trúc hàng đợi vòng (ring buffer) trong bộ nhớ kernel, loại bỏ nhu cầu biên dịch lại mã nguồn hay cài đặt gói \texttt{linux-headers} truyền thống.
+    \item \textbf{Phân vùng Người dùng (Userspace)}: Daemon Falco liên tục đọc dữ liệu sự kiện từ ring buffer và đưa vào bộ máy đối sánh luật (Rules Engine) để phân tích hành vi bất thường theo thời gian thực.
+\end{itemize}
+
+\subsubsection{Cấu trúc tập luật (Rules Engine)}
+Tập luật của Falco được cấu hình dưới định dạng YAML bao gồm các thành phần cốt lõi:
+\begin{itemize}
+    \item \textbf{Rules}: Định nghĩa quy tắc nhận diện với các trường bắt buộc \texttt{rule}, \texttt{desc}, \texttt{condition}, \texttt{output}, \texttt{priority}.
+    \item \textbf{Macros và Lists}: Tái sử dụng các điều kiện lọc và danh sách tiến trình, thư mục an toàn (whitelist) nhằm tối ưu hiệu năng và triệt tiêu cảnh báo giả (false positives).
+    \item \textbf{Mức độ ưu tiên (Severity Priorities)}: Hỗ trợ 8 cấp độ phân loại từ \texttt{EMERGENCY}, \texttt{ALERT}, \texttt{CRITICAL}, \texttt{ERROR}, \texttt{WARNING}, \texttt{NOTICE}, \texttt{INFORMATIONAL} đến \texttt{DEBUG}.
+\end{itemize}
+Hệ thống thiết lập các luật tùy biến chuyên biệt nhằm bảo vệ cụm vi dịch vụ Online Boutique:
+\begin{enumerate}
+    \item \textbf{Unauthorized shell spawned in container} (Priority: \texttt{WARNING}): Cảnh báo ngay lập tức khi phát hiện tiến trình shell (\texttt{bash}, \texttt{sh}, \texttt{zsh}) được khởi tạo tương tác bên trong container sản xuất.
+    \item \textbf{Read sensitive file untrusted} (Priority: \texttt{ERROR}): Phát hiện các hành vi đọc trộm tệp tin cấu hình tài khoản và phân quyền hệ thống (\texttt{/etc/shadow}, \texttt{/etc/sudoers}).
+    \item \textbf{Write below binary dir in container} (Priority: \texttt{CRITICAL}): Ngăn chặn hành vi ghi đè hoặc cài cắm tập tin thực thi lạ vào các thư mục nhị phân hệ thống (\texttt{/bin}, \texttt{/sbin}, \texttt{/usr/bin}).
+\end{enumerate}
+
+\subsubsection{Falcosidekick và Falcosidekick Web UI}
+Falco hỗ trợ xuất cảnh báo ra nhiều kênh như \texttt{stdout}, \texttt{syslog}, và \texttt{json\_output}. Để tập trung hóa và trực quan hóa cho đội ngũ vận hành SOC/DevSecOps, hệ thống tích hợp daemon \textbf{Falcosidekick}:
+\begin{itemize}
+    \item Falcosidekick đóng vai trò trung gian tiếp nhận luồng sự kiện bảo mật từ Falco qua giao thức HTTP REST API tại cổng 2801.
+    \item Tích hợp cổng hiển thị đồ họa \textbf{Falcosidekick Web UI} lắng nghe trên cổng nội bộ 2802, được công khai trong mạng cụm qua Service NodePort \textbf{31802}. Giao diện cung cấp biểu đồ thống kê trực quan số lượng sự kiện theo thời gian, phân loại theo độ nghiêm trọng, chi tiết container ID, namespace và thông tin vi phạm.
+\end{itemize}
 
 \subsection{Google Online Boutique}
 Ứng dụng thương mại điện tử gồm 12 microservices triển khai trong namespace \texttt{online-boutique}: \texttt{frontend}, \texttt{cartservice}, \texttt{redis-cart}, \texttt{productcatalogservice}, \texttt{checkoutservice}, \texttt{paymentservice}, \texttt{currencyservice}, \texttt{emailservice}, \texttt{shippingservice}, \texttt{recommendationservice}, \texttt{adservice} và \texttt{loadgenerator}.

@@ -61,7 +61,7 @@ for i in {1..35}; do nc -z -v -w 1 13.251.225.100 8443 & done
 ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=currencyservice -o jsonpath='{.items[0].metadata.name}') -- nc -zv -w 2 paymentservice 50051"
 
 # 3.2. Cố tình quét cổng nội bộ từ Pod bên trong cụm (Internal Lateral Recon)
-ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}') -- nc -zv -w 2 10.0.10.10 6443"
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=currencyservice -o jsonpath='{.items[0].metadata.name}') -- nc -zv -w 2 10.0.10.10 6443"
 
 # 3.3. Xem log Cilium eBPF trực tiếp bắt và chặn các gói vi phạm NetworkPolicy
 ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl -n kube-system exec -ti \$(kubectl get pods -n kube-system -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}') -- cilium monitor --type drop"
@@ -74,19 +74,23 @@ ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ub
 ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl get secrets -n online-boutique"
 
 # 4.2. Mở shell tương tác / Container Exec vào bên trong Pod (Execution - Rule 110004)
-ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}') -- ls"
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=loadgenerator -o jsonpath='{.items[0].metadata.name}') -- ls"
 
 # 4.3. Can thiệp sửa đổi quyền RBAC / Tạo backdoor Cluster Admin (Privilege Escalation - Rule 110005)
 ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl create clusterrolebinding malicious-admin-binding --clusterrole=cluster-admin --user=system:anonymous"
+# Dọn dẹp sau khi demo:
+# ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl delete clusterrolebinding malicious-admin-binding"
 
 # 4.4. Xóa tài nguyên quan trọng trong cụm (Impact / Malicious Deletion - Rule 110006)
 ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl delete pod -n online-boutique \$(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}')"
 
 # 4.5. Truy cập ẩn danh không xác thực vào K8s API (Anonymous Access - Rule 110007)
-curl -k -s "https://10.0.10.10:6443/api/v1/namespaces"
+ssh -i ~/.ssh/ncs-key.pem ubuntu@13.251.225.100 "curl -k -s 'https://10.0.10.10:6443/api/v1/namespaces'"
 
 # 4.6. Tạo Pod đặc quyền leo thang (Privileged Pod / HostPID Escape)
 ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl run rogue-pod --image=busybox --restart=Never --overrides='{\"spec\":{\"hostPID\":true,\"containers\":[{\"name\":\"rogue\",\"image\":\"busybox\",\"securityContext\":{\"privileged\":true}}]}}' -- sleep 3600"
+# Dọn dẹp sau khi demo:
+# ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl delete pod rogue-pod"
 
 
 
@@ -103,5 +107,23 @@ ssh -i ~/.ssh/ncs-key.pem ubuntu@13.251.225.100 "sudo touch /tmp/.hidden_backdoo
 ssh -i ~/.ssh/ncs-key.pem ubuntu@13.251.225.100 "sudo su -c 'id; whoami'"
 
 # 5.4. Thử đăng nhập sai SSH brute-force (Authentication Failed - Rule 5716)
-ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=yes fakeuser@13.251.225.100
-ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=yes root@13.251.225.100
+ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o PasswordAuthentication=yes fakeuser@13.251.225.100
+ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o PasswordAuthentication=yes root@13.251.225.100
+
+
+
+6. TẤN CÔNG RUNTIME CONTAINER & GIÁM SÁT FALCO (CONTAINER RUNTIME SECURITY)
+
+# 6.1. Mở Shell tương tác trái phép bên trong Pod Production (Rule: Unauthorized shell spawned in container)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=loadgenerator -o jsonpath='{.items[0].metadata.name}') -- sh -c 'whoami; uptime'"
+
+# 6.2. Đọc trộm tập tin nhạy cảm của hệ thống bên trong Container (Rule: Read sensitive file untrusted)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=loadgenerator -o jsonpath='{.items[0].metadata.name}') -- cat /etc/shadow"
+
+# 6.3. Ghi tập tin độc hại vào thư mục nhị phân hệ thống bên trong Container (Rule: Write below binary dir in container)
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl exec -n online-boutique \$(kubectl get pods -n online-boutique -l app=loadgenerator -o jsonpath='{.items[0].metadata.name}') -- touch /bin/malicious_backdoor"
+
+# 6.4. Xem log cảnh báo JSON thời gian thực trực tiếp từ Falco DaemonSet
+ssh -i ~/.ssh/ncs-key.pem -o ProxyCommand="ssh -i ~/.ssh/ncs-key.pem -W %h:%p ubuntu@13.251.225.100" ubuntu@10.0.10.10 "kubectl logs -n falco -l app.kubernetes.io/name=falco -c falco --tail=20"
+
+

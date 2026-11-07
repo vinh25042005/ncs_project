@@ -35,7 +35,7 @@ variable "key_name" {
 }
 
 variable "admin_cidr" {
-  description = "Địa chỉ IP/CIDR được phép truy cập SSH, Gateway GUI và Wazuh Dashboard (Khuyến nghị dùng IP admin cố định thay vì 0.0.0.0/0)"
+  description = "Địa chỉ IP/CIDR được phép truy cập SSH, Gateway GUI và Wazuh Dashboard"
   type        = string
   default     = "0.0.0.0/0"
 

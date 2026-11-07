@@ -1,0 +1,4 @@
+---
+falcosidekick_ui_nodeport: 31802
+falco_namespace: falco
+falco_helm_chart_version: "4.17.0"

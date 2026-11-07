@@ -1,6 +1,5 @@
 ---
 # Role: common — Cấu hình OS, containerd và cài đặt kubeadm/kubelet/kubectl
-# Áp dụng cho toàn bộ các node trong cụm 
 - name: Đợi và giải phóng tiến trình unattended-upgrades nếu có
   ansible.builtin.shell: |
     systemctl stop unattended-upgrades 2>/dev/null || true
@@ -37,14 +36,14 @@
   ansible.builtin.command: sysctl --system
   changed_when: false
 
-- name: Tắt Swap hoàn toàn theo chuẩn Kubernetes
+- name: Tắt Swap
   ansible.builtin.shell: |
     swapoff -a
     sed -i '/swap/d' /etc/fstab
     rm -f /swapfile
   changed_when: false
 
-- name: Cài đặt các gói phụ trợ cơ bản
+- name: Cài đặt các gói cơ bản
   ansible.builtin.apt:
     name:
       - apt-transport-https
@@ -73,7 +72,7 @@
     creates: /etc/containerd/config.toml
   notify: restart containerd
 
-- name: Đảm bảo dịch vụ containerd được bật và chạy
+- name: Đảm bảo dịch vụ containerd được bật
   ansible.builtin.systemd:
     name: containerd
     state: started

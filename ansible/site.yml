@@ -77,6 +77,16 @@
   roles:
     - online_boutique
 
+# Giai đoạn 8.5: Triển khai Falco Runtime Security & Falcosidekick UI
+- name: Giai đoạn 8.5 - Triển khai Falco Runtime Security & Falcosidekick UI
+  hosts: master
+  become: true
+  environment:
+    KUBECONFIG: "{{ kubeconfig | default('/etc/kubernetes/admin.conf') }}"
+  tags: [falco, runtime_security]
+  roles:
+    - falco
+
 # Giai đoạn 9: Wazuh Manager trên máy chủ SIEM chuyên biệt (Management Subnet 10.0.20.10)
 - name: Giai đoạn 9 - Wazuh Manager trên máy chủ SIEM chuyên biệt
   hosts: wazuh
@@ -95,20 +105,23 @@
   roles:
     - wazuh_agent
 
-# Giai đoạn 10.5: Wazuh Agent trên K8s Master (đẩy K8s audit.log)
-- name: Giai đoạn 10.5 - Wazuh Agent trên Master (K8s audit log)
+# Giai đoạn 10.5: Wazuh Agent trên K8s Master (đẩy K8s audit.log và Falco events)
+- name: Giai đoạn 10.5 - Wazuh Agent trên Master (K8s audit log & Falco)
   hosts: master
   become: true
   tags: [wazuh, wazuh_agent]
   vars:
     wazuh_agent_k8s_audit: true
+    wazuh_agent_falco: true
   roles:
     - wazuh_agent
 
-# Giai đoạn 10.6: Wazuh Agent trên K8s Workers (Giám sát bảo mật máy chủ Worker)
+# Giai đoạn 10.6: Wazuh Agent trên K8s Workers (Giám sát bảo mật máy chủ Worker & Falco)
 - name: Giai đoạn 10.6 - Wazuh Agent trên K8s Workers
   hosts: workers
   become: true
   tags: [wazuh, wazuh_agent]
+  vars:
+    wazuh_agent_falco: true
   roles:
     - wazuh_agent

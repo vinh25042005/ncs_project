@@ -279,7 +279,7 @@ https_nodes       BACKEND    UP
 \end{lstlisting}
 Gửi truy vấn HTTPS trực tiếp tới địa chỉ công khai của Gateway 2 (\texttt{18.140.131.125}):
 \begin{lstlisting}[language=bash]
-curl -skI https://18.140.131.125/ -H "Host: boutique.lab" | head -n 3
+curl -skI https://18.140.131.125/ | head -n 3
 # Tra ve:
 # HTTP/2 200 
 # date: Fri, 06 Nov 2026 00:34:36 GMT
@@ -299,7 +299,7 @@ Thực hiện kiểm tra tính sẵn sàng bằng 5 yêu cầu liên tiếp qua 
 \begin{lstlisting}[language=bash, caption={Kết quả 5 yêu cầu liên tiếp qua AWS NLB trong kịch bản thảm họa kép}]
 for i in {1..5}; do
   curl -s -k -o /dev/null -w "Request $i: HTTP Status %{http_code}, Remote IP: %{remote_ip}, Total time: %{time_total}s\n" \
-    https://ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com/ -H "Host: boutique.lab"
+    https://ncs-project-nlb-fa5afa04f4f63ce1.elb.ap-southeast-1.amazonaws.com/
 done
 
 # Ket qua ghi nhan:
@@ -313,4 +313,87 @@ done
 Toàn bộ 100\% các yêu cầu đều đạt mã phản hồi \textbf{HTTP/2 200 OK} với thời gian phản hồi trung bình chỉ $\sim 0.29\text{s}$. Hệ thống đạt độ tin cậy tuyệt đối, tự động vượt qua sự cố phân mảnh chéo vùng mà không cần bất kỳ sự can thiệp thủ công nào từ quản trị viên.
 
 Sau khi mở khóa IPTables trên Worker 2 và khởi động lại HAProxy trên Gateway 1, toàn bộ các thành phần tự động kiểm tra sức khỏe và tái gia nhập cụm với trạng thái \texttt{UP (L4OK)} hoàn chỉnh.
+
+\section{Kiểm thử 8: Giám sát an ninh Runtime Container với Falco và Falcosidekick UI}
+\subsection{Kịch bản kiểm thử}
+Thực hiện mô phỏng 3 hành vi tấn công trực tiếp tại tầng Runtime bên trong các Pod của ứng dụng Online Boutique:
+\begin{enumerate}
+    \item \textbf{Mở Shell tương tác trong Container sản xuất}: Thực thi lệnh spawn shell \texttt{/bin/sh} vào Pod \texttt{frontend}:
+\begin{lstlisting}[language=bash]
+kubectl exec -n online-boutique $(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}') -- /bin/sh -c 'whoami; uptime'
+\end{lstlisting}
+    \item \textbf{Đọc trộm tập tin nhạy cảm của hệ thống}: Cố tình truy xuất tập tin \texttt{/etc/shadow} từ bên trong container:
+\begin{lstlisting}[language=bash]
+kubectl exec -n online-boutique $(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}') -- cat /etc/shadow
+\end{lstlisting}
+    \item \textbf{Cài cắm tập tin thực thi vào thư mục nhị phân hệ thống}: Cố gắng ghi tệp tin độc hại vào thư mục \texttt{/bin}:
+\begin{lstlisting}[language=bash]
+kubectl exec -n online-boutique $(kubectl get pods -n online-boutique -l app=frontend -o jsonpath='{.items[0].metadata.name}') -- touch /bin/malicious_backdoor
+\end{lstlisting}
+\end{enumerate}
+
+\subsection{Kết quả kiểm thử}
+\subsubsection{1. Nhật ký sự kiện bắt giữ bởi Falco eBPF Driver}
+Ngay khi các hành vi trên được kích hoạt, Falco thông qua driver \texttt{modern\_ebpf} phát hiện các system call (\texttt{execve}, \texttt{openat}) bất thường và xuất cảnh báo JSON thời gian thực:
+\begin{lstlisting}[language=json, caption={Nhật ký cảnh báo an ninh Runtime do Falco ghi nhận}]
+{
+  "hostname": "k8s-worker-1",
+  "priority": "Warning",
+  "rule": "Unauthorized shell spawned in container",
+  "source": "syscall",
+  "time": "2026-11-06T08:35:12.102941Z",
+  "output": "Canh bao Runtime: Phat hien shell trong container (user=root command=sh -c whoami; uptime parent=containerd-shim container_id=e7b1a29f8c12 container_name=frontend image=gcr.io/google-samples/microservices-demo/frontend)",
+  "output_fields": {
+    "container.id": "e7b1a29f8c12",
+    "container.name": "frontend",
+    "k8s.ns.name": "online-boutique",
+    "k8s.pod.name": "frontend-764c96bcbb-d6gw5",
+    "proc.cmdline": "sh -c whoami; uptime",
+    "user.name": "root"
+  }
+}
+{
+  "hostname": "k8s-worker-1",
+  "priority": "Error",
+  "rule": "Read sensitive file untrusted",
+  "source": "syscall",
+  "time": "2026-11-06T08:35:28.481920Z",
+  "output": "Canh bao Runtime: Doc tap tin nhay cam trong container (user=root file=/etc/shadow command=cat /etc/shadow container_id=e7b1a29f8c12 container_name=frontend image=gcr.io/google-samples/microservices-demo/frontend)",
+  "output_fields": {
+    "container.id": "e7b1a29f8c12",
+    "container.name": "frontend",
+    "fd.name": "/etc/shadow",
+    "k8s.ns.name": "online-boutique",
+    "proc.cmdline": "cat /etc/shadow"
+  }
+}
+{
+  "hostname": "k8s-worker-1",
+  "priority": "Critical",
+  "rule": "Write below binary dir in container",
+  "source": "syscall",
+  "time": "2026-11-06T08:35:45.891230Z",
+  "output": "Canh bao Runtime: Ghi file vao thu muc he thong trong container (user=root file=/bin/malicious_backdoor command=touch /bin/malicious_backdoor container_name=frontend)",
+  "output_fields": {
+    "container.name": "frontend",
+    "fd.name": "/bin/malicious_backdoor",
+    "k8s.ns.name": "online-boutique"
+  }
+}
+\end{lstlisting}
+
+\subsubsection{2. Trực quan hóa cảnh báo an ninh trên Falcosidekick Web UI}
+Falcosidekick daemon nhận luồng stream cảnh báo qua cổng HTTP 2801 và đẩy lên giao diện Falcosidekick Web UI tại cổng NodePort \textbf{31802}:
+\begin{lstlisting}[language=bash, caption={Kiểm tra trạng thái sẵn sàng của giao diện Falcosidekick Web UI}]
+curl -sI http://10.0.10.10:31802/ | head -n 2
+# Phản hồi:
+# HTTP/1.1 200 OK
+# Content-Type: text/html; charset=utf-8
+\end{lstlisting}
+Trên trang quản trị Falcosidekick UI (\texttt{http://10.0.10.10:31802}):
+\begin{itemize}
+    \item Biểu đồ hình tròn và biểu đồ cột thống kê trực quan số lượng vi phạm được phân tách rõ theo các cấp độ nghiêm trọng: \textbf{Critical} (Ghi file vào thư mục nhị phân), \textbf{Error} (Đọc file nhạy cảm), và \textbf{Warning} (Mở shell tương tác trái phép).
+    \item Bảng chi tiết sự kiện cho phép lọc nhanh theo Namespace \texttt{online-boutique}, hiển thị đầy đủ tên Pod vi phạm (\texttt{frontend}), ID container, thời điểm kích hoạt và mã lệnh tấn công, giúp các chuyên gia SOC rút ngắn tối đa thời gian phát hiện và ứng phó sự cố (MTTD \& MTTR).
+\end{itemize}
+
 

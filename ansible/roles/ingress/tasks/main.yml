@@ -1,11 +1,6 @@
 ---
 # Role: ingress — Cài đặt Ingress-NGINX Controller cho Kubernetes 
-- name: Đảm bảo Master node giữ nguyên taint control-plane (Bảo vệ Control Plane)
-  ansible.builtin.shell: |
-    kubectl taint nodes --selector='node-role.kubernetes.io/control-plane' node-role.kubernetes.io/control-plane:NoSchedule --overwrite 2>/dev/null || true
-  changed_when: false
-
-- name: Dọn dẹp Job admission webhook cũ nếu có (tránh lỗi immutable Job spec khi re-apply)
+- name: Dọn dẹp Job admission webhook cũ
   ansible.builtin.shell: |
     kubectl delete job -n ingress-nginx --all --ignore-not-found=true
   changed_when: false
@@ -15,7 +10,7 @@
     kubectl apply -f {{ ingress_nginx_manifest_url }}
   changed_when: false
 
-- name: Gán nhãn ingress-ready cho cả 2 Worker Nodes (Multi-AZ HA)
+- name: Gán nhãn ingress-ready cho cả 2 Worker Nodes
   ansible.builtin.shell: |
     kubectl label node ip-10-0-10-139 ingress-ready=true --overwrite
     kubectl label node ip-10-0-11-21 ingress-ready=true --overwrite
@@ -34,26 +29,6 @@
     kubectl annotate ingressclass nginx ingressclass.kubernetes.io/is-default-class="true" --overwrite
   changed_when: false
 
-- name: Tạo namespace online-boutique trước nếu chưa tồn tại (để tạo TLS Secret)
-  ansible.builtin.shell: |
-    kubectl create namespace online-boutique --dry-run=client -o yaml | kubectl apply -f -
-  changed_when: false
-
-- name: Tạo chứng chỉ SSL tự ký chuẩn và Secret boutique-tls cho domain boutique.lab
-  ansible.builtin.shell: |
-    mkdir -p /tmp/boutique-certs
-    if [ ! -f /tmp/boutique-certs/tls.key ]; then
-      openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout /tmp/boutique-certs/tls.key \
-        -out /tmp/boutique-certs/tls.crt \
-        -subj "/CN=boutique.lab/O=NCS Project"
-    fi
-    kubectl create secret tls boutique-tls \
-      --cert=/tmp/boutique-certs/tls.crt \
-      --key=/tmp/boutique-certs/tls.key \
-      -n online-boutique --dry-run=client -o yaml | kubectl apply -f -
-    rm -rf /tmp/boutique-certs
-  changed_when: false
 
 - name: Đợi Ingress-NGINX Controller Deployment đạt trạng thái sẵn sàng (Rolled Out)
   ansible.builtin.shell: |

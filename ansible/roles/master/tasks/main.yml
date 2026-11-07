@@ -14,7 +14,7 @@
     - /etc/kubernetes
     - /var/log/kubernetes
 
-- name: Tạo file audit-policy.yaml cho K8s API Server (phục vụ Wazuh SIEM)
+- name: Tạo file audit-policy.yaml cho K8s API Server
   ansible.builtin.copy:
     src: audit-policy.yaml
     dest: /etc/kubernetes/audit-policy.yaml
@@ -27,7 +27,7 @@
     mode: '0644'
   when: not kubeadmin_conf.stat.exists
 
-- name: Khởi tạo Kubernetes Control-Plane với kubeadm
+- name: Khởi tạo Kubernetes Control-Plane
   ansible.builtin.shell: |
     kubeadm init --config /etc/kubernetes/kubeadm-config.yaml
   when: not kubeadmin_conf.stat.exists
@@ -53,7 +53,7 @@
   register: apiserver_manifest
   tags: [audit]
 
-- name: Giới hạn audit log trên kube-apiserver (áp dụng cả cho cụm đã dựng trước đây)
+- name: Giới hạn audit log trên kube-apiserver
   ansible.builtin.lineinfile:
     path: /etc/kubernetes/manifests/kube-apiserver.yaml
     regexp: '^\s*- --{{ item.flag }}='

@@ -4,26 +4,12 @@ metadata:
   name: boutique-ingress
   namespace: online-boutique
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/limit-rps: "50"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - boutique.lab
-      secretName: boutique-tls
   rules:
-    - host: boutique.lab
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 80
     - http:
         paths:
           - path: /
